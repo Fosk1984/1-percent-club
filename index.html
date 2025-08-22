@@ -188,36 +188,64 @@
   "rules": {
     ".read": false,
     ".write": false,
+
     "rooms": {
       "$code": {
-        ".read": "auth != null && (root.child('rooms/'+$code+'/players/'+auth.uid+'/present').val() == true || root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid)",
         "meta": {
-          ".write": "auth != null && (!data.exists() || root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid)"
-        },
-        "current": {
           ".read": "auth != null",
-          ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid"
+          ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() == auth.uid) || (data.exists() && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid))",
+          "hostUid":     { ".validate": "newData.isString()" },
+          "allowJoin":   { ".validate": "newData.isBoolean" },
+          "playerLimit": { ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 80" },
+          "qIndex":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "createdAt":   { ".validate": "newData.isNumber()" }
         },
-        "players": {
-          "$uid": {
-            ".read": "auth != null",
-            ".write": "auth != null && $uid == auth.uid",
-            "eliminated": { ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid" }
+
+        "current": {
+          ".read":  "auth != null",
+          ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
+          "phase":        { ".validate": "newData.isString() && (newData.val() == 'hidden' || newData.val() == 'revealed' || newData.val() == 'locked' || newData.val() == 'result')" },
+          "qid":          { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "deadline":     { ".validate": "newData.isNumber()" },
+          "prompt":       { ".validate": "newData.isString() && newData.val().length <= 300" },
+          "correctIndex": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
+          "choices": {
+            ".validate": "newData.hasChildren(['0','1','2','3'])",
+            "0": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "1": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "2": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "3": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "$other": { ".validate": false }
           }
         },
+
+        "players": {
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "auth != null && $uid == auth.uid",
+            "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 24" },
+            "present":  { ".validate": "newData.isBoolean()" },
+            "joinedAt": { ".validate": "newData.isNumber()" },
+            "eliminated": {
+              ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        },
+
         "answers": {
+          ".read": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
           "$qid": {
             "$uid": {
-              ".write": "auth != null && auth.uid == $uid && now <= root.child('rooms/'+$code+'/current/deadline').val() && $qid == root.child('rooms/'+$code+'/current/qid').val() && !data.exists()",
-              ".read": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid"
+              ".write": "auth != null && auth.uid == $uid && root.child('rooms/'+$code+'/current/deadline').isNumber() && now <= root.child('rooms/'+$code+'/current/deadline').val() + 1500 && root.child('rooms/'+$code+'/current/qid').isNumber() && $qid == root.child('rooms/'+$code+'/current/qid').val() && !data.exists()",
+              ".validate": "newData.hasChildren(['index','at']) && newData.child('index').isNumber() && newData.child('index').val() >= 0 && newData.child('index').val() <= 3 && newData.child('at').isNumber() && newData.getPriority() == null"
             }
           }
         }
       }
     }
   }
-}
-</pre>
+}</pre>
         </li>
         <li>Commit this single <b>index.html</b> file to a GitHub repo → enable GitHub Pages (main branch /root).</li>
       </ol>
@@ -265,6 +293,9 @@
     const joinCode = els('#joinCode');
     const displayName = els('#displayName');
     const joinBtn = els('#joinBtn');
+    // Disable action buttons until auth is ready
+    createRoomBtn.disabled = true;
+    joinBtn.disabled = true;
 
     const hostUI = els('#hostUI');
     const roomCodeHost = els('#roomCodeHost');
@@ -308,7 +339,12 @@
 
     // Auth flow
     onAuthStateChanged(auth, async (user)=>{
-      if(user){ state.uid = user.uid; return; }
+      if(user){
+        state.uid = user.uid;
+        createRoomBtn.disabled = false;
+        joinBtn.disabled = false;
+        return;
+      }
       await signInAnonymously(auth);
     });
 
@@ -530,7 +566,9 @@
 
     async function submitAnswer(index){
       const code = state.room; const cur = state.current; if(!cur || cur.phase!=='revealed') return;
-      const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${state.uid}`);
+      const uid = auth.currentUser?.uid || state.uid;
+      if(!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
+      const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
       try{
         await set(ansRef, { index, at: Date.now() + serverOffset });
         // highlight selection locally
