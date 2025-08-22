@@ -86,6 +86,7 @@
       </div>
       <span class="chip" id="cloudChip">☁️ Cloud: Off</span>
       <span class="chip" id="soundChip">🔈 Sound: Off</span>
+      <span class="chip" id="scoreChip">Auto‑Score: On</span>
     </div>
   </header>
 
@@ -215,6 +216,12 @@ if (typeof window.myUid === 'undefined') window.myUid = null;
   }
 })();
 
+// Ensure we have an anonymous UID before writes
+async function ensureAuth(){
+  try{ if(myUid) return myUid; await firebase.auth().signInAnonymously(); }catch(e){}
+  return new Promise((resolve)=>{ const off=firebase.auth().onAuthStateChanged(u=>{ if(u){ myUid=u.uid; off(); resolve(myUid); } }); });
+}
+
 /******************** Data (questions) ********************/
 const QUESTIONS = [
   {pct:90, q:'A 22-year-old twists an ankle. Which structure is injured in a <b>sprain</b>?', a:['Muscle belly','Tendon midsubstance','Ligament','Muscle–tendon junction'], c:2, note:'Sprain = ligament; strain = muscle/tendon unit.'},
@@ -235,7 +242,7 @@ const QUESTIONS = [
 ];
 
 /******************** State ********************/
-const state = { mode:'local', idx:-1, selected:null, revealed:false, sound:false, players:[], cloud:{ room:null, unsubRoom:null, unsubCounts:null, unsubPlayers:null } };
+const state = { mode:'local', idx:-1, selected:null, revealed:false, sound:false, autoScore: JSON.parse(localStorage.getItem('msk1pct_autoScore')||'true'), players:[], cloud:{ room:null, unsubRoom:null, unsubCounts:null, unsubPlayers:null, answers:{} } };
 
 /******************** Elements ********************/
 const ladderEl = document.getElementById('ladder');
@@ -253,6 +260,7 @@ const nextBtn = document.getElementById('nextBtn');
 const lockBtn = document.getElementById('lockBtn');
 const soundChip=document.getElementById('soundChip');
 const cloudChip=document.getElementById('cloudChip');
+const scoreChip=document.getElementById('scoreChip');
 
 const nameInput=document.getElementById('nameInput');
 const addBtn=document.getElementById('addBtn');
@@ -303,6 +311,7 @@ function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;"
 function setStatus(html){ statusEl.innerHTML = html; }
 function setRoleBadge(){ roleBadge.textContent = state.mode.charAt(0).toUpperCase()+state.mode.slice(1); }
 function setCloudChip(){ cloudChip.textContent = firebaseReady? '☁️ Cloud: On' : '☁️ Cloud: Off'; }
+function paintScoreChip(){ scoreChip.textContent = 'Auto‑Score: ' + (state.autoScore? 'On' : 'Off'); }
 
 /******************** Ladder ********************/
 function renderLadder(){ ladderEl.innerHTML=''; QUESTIONS.forEach((q,i)=>{ const d=document.createElement('div'); d.className='step'+(i<state.idx?' done':'')+(i===state.idx?' current':''); const l=document.createElement('div'); l.innerHTML=`<span class="pct">${q.pct}%</span>`; const r=document.createElement('div'); r.className='small muted'; r.textContent = i<state.idx? '✔' : (i===state.idx? 'Now' : 'Up next'); d.append(l,r); ladderEl.appendChild(d); }); }
@@ -339,60 +348,53 @@ function roomDoc(){ if(!db||!state.cloud.room) throw new Error('Room/DB not read
 function answersCol(){ return roomDoc().collection('answers'); }
 function playersCol(){ return roomDoc().collection('players'); }
 
-// Ensure we have an anonymous auth UID before writes
-async function ensureAuth(timeout=5000){
-  if(!firebaseReady) throw new Error('Firebase not ready');
-  if(firebase.auth().currentUser){ myUid = firebase.auth().currentUser.uid; return myUid; }
-  return await new Promise((resolve, reject)=>{
-    const start = Date.now();
-    const off = firebase.auth().onAuthStateChanged(u=>{ if(u){ myUid=u.uid; off(); resolve(myUid); } });
-    const t = setInterval(()=>{
-      if(firebase.auth().currentUser){ clearInterval(t); off(); resolve(firebase.auth().currentUser.uid); }
-      if(Date.now()-start>timeout){ clearInterval(t); off(); reject(new Error('Auth timeout')); }
-    }, 100);
-  });
-}
-
-async function createRoom(){
-  if(!firebaseReady||!db){ alert('Cloud sync is OFF — check FB_CONFIG and authorised domain.'); return false; }
-  try{
-    await ensureAuth();
-    const code = randomCode();
-    await db.collection('rooms').doc(code).set({
-      qIdx:0,
-      revealed:false,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      open:true,
-      hostUid: myUid
-    });
-    state.cloud.room = code;
-    onRoomChanged();
-    return true;
-  }catch(e){
-    console.error('Create room failed:', e);
-    alert('Could not create room: '+(e.message||e));
-    return false;
-  }
-}
+async function createRoom(){ if(!firebaseReady||!db) return false; const code=randomCode(); await db.collection('rooms').doc(code).set({ qIdx:0, revealed:false, createdAt:firebase.firestore.FieldValue.serverTimestamp(), open:true, hostUid: myUid||null }); state.cloud.room=code; onRoomChanged(); return true; }
 async function closeRoom(){ if(!state.cloud.room) return; await roomDoc().update({ open:false }); unsubscribeCloud(); state.cloud.room=null; onRoomChanged(); }
-async function joinRoom(code,name){ if(!firebaseReady) return alert('Cloud sync is off.'); if(!code) return alert('Enter a room code'); state.cloud.room=code.toUpperCase(); onRoomChanged(); await playersCol().doc(myUid||'anon').set({ name:name||'Player', passes:3, active:true, joinedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true}); }
+async function joinRoom(code,name){ if(!firebaseReady) return alert('Cloud sync is off.'); if(!code) return alert('Enter a room code'); try{ await ensureAuth(); state.cloud.room=code.toUpperCase(); onRoomChanged(); await playersCol().doc(myUid).set({ name:name||'Player', passes:3, active:true, joinedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true}); }catch(e){ console.error('Join failed:', e); alert('Join failed: '+(e.message||e)); } }
 
 function subscribeRoom(){ if(!state.cloud.room||!firebaseReady) return; if(state.cloud.unsubRoom) state.cloud.unsubRoom(); state.cloud.unsubRoom = roomDoc().onSnapshot(s=>{ const r=s.data(); if(!r) return; const was=state.idx; state.idx=r.qIdx; state.revealed=r.revealed; if(was!==state.idx){ showQuestion(); watchCounts(); } if(state.revealed){ revealPaintOnly(); } renderLadder(); }); if(state.cloud.unsubPlayers) state.cloud.unsubPlayers(); state.cloud.unsubPlayers = playersCol().onSnapshot(snap=>{ state.players=[]; snap.forEach(doc=>{ const p=doc.data(); state.players.push({ id:doc.id, name:p.name||'Player', passes:p.passes??3, active:p.active??true }); }); renderRoster(); }); watchCounts(); }
 function unsubscribeCloud(){ if(state.cloud.unsubRoom){ state.cloud.unsubRoom(); state.cloud.unsubRoom=null; } if(state.cloud.unsubCounts){ state.cloud.unsubCounts(); state.cloud.unsubCounts=null; } if(state.cloud.unsubPlayers){ state.cloud.unsubPlayers(); state.cloud.unsubPlayers=null; } }
 
-function watchCounts(){ if(!firebaseReady||!state.cloud.room) return; if(state.cloud.unsubCounts) state.cloud.unsubCounts(); state.cloud.unsubCounts = answersCol().where('qIdx','==',state.idx).onSnapshot(snap=>{ const counts=[0,0,0,0]; snap.forEach(d=>{ const ch=d.data().choice; if(ch>=0&&ch<4) counts[ch]++; }); renderCounts(counts); }); }
+function watchCounts(){ if(!firebaseReady||!state.cloud.room) return; if(state.cloud.unsubCounts) state.cloud.unsubCounts(); state.cloud.unsubCounts = answersCol().where('qIdx','==',state.idx).onSnapshot(snap=>{ const counts=[0,0,0,0]; const map={}; snap.forEach(d=>{ const data=d.data(); const ch=data.choice; if(ch>=0&&ch<4){ counts[ch]++; map[data.uid]=ch; } }); state.cloud.answers = map; renderCounts(counts); renderRoster(); }); }
 function renderCounts([A,B,C,D]){ const total=Math.max(1,A+B+C+D); countsBox.hidden=false; fa.style.width=(A*100/total)+'%'; fb.style.width=(B*100/total)+'%'; fc.style.width=(C*100/total)+'%'; fd.style.width=(D*100/total)+'%'; ca.textContent=A; cb.textContent=B; cc.textContent=C; cd.textContent=D; }
 
-async function hostReveal(){ if(!firebaseReady||!state.cloud.room) return revealLocal(); await roomDoc().update({ revealed:true }); }
+async function hostReveal(){ if(!firebaseReady||!state.cloud.room) return revealLocal(); await roomDoc().update({ revealed:true }); await autoScoreHost(); }
 async function hostNext(){ if(!firebaseReady||!state.cloud.room) return nextLocal(); const nxt=Math.min(state.idx+1, QUESTIONS.length-1); await roomDoc().update({ qIdx:nxt, revealed:false }); }
-async function submitAnswer(choice){ if(!firebaseReady||!state.cloud.room||myUid==null) return; const id=`${state.idx}_${myUid}`; await answersCol().doc(id).set({ qIdx:state.idx, uid:myUid, choice, ts:firebase.firestore.FieldValue.serverTimestamp() }); }
+async function submitAnswer(choice){ if(!firebaseReady||!state.cloud.room) return; try{ await ensureAuth(); const id=`${state.idx}_${myUid}`; await answersCol().doc(id).set({ qIdx:state.idx, uid:myUid, choice, ts:firebase.firestore.FieldValue.serverTimestamp() }); }catch(e){ console.error('Submit failed:', e); } }
 function revealPaintOnly(){ const q=QUESTIONS[state.idx]; [...optsEl.children].forEach(btn=>{ const ix=Number(btn.dataset.idx); btn.disabled=true; if(ix===q.c) btn.classList.add('correct'); if(ix===state.selected && ix!==q.c) btn.classList.add('wrong'); }); noteEl.hidden=false; noteEl.innerHTML=q.note; }
+
+// Auto-scoring on host after Reveal
+async function autoScoreHost(){
+  if(!(state.mode==='host' && firebaseReady && state.cloud.room && state.autoScore)) return;
+  try{
+    const rsnap = await roomDoc().get();
+    const rdata = rsnap.data()||{};
+    if(rdata.scored === state.idx) return; // already scored this question
+    const correct = QUESTIONS[state.idx].c;
+    const batch = db.batch();
+    state.players.forEach(p=>{
+      const choice = state.cloud.answers ? state.cloud.answers[p.id] : undefined;
+      let changed=false, newPasses=p.passes, newActive=p.active;
+      if(choice !== correct){ // wrong or no answer
+        if(newPasses>0){ newPasses--; changed=true; }
+        if(newPasses<=0){ newActive=false; changed=true; }
+      }
+      if(changed){
+        p.passes=newPasses; p.active=newActive;
+        batch.set(playersCol().doc(p.id), { passes:newPasses, active:newActive }, { merge:true });
+      }
+    });
+    await batch.commit();
+    await roomDoc().set({ scored: state.idx }, { merge:true });
+    renderRoster();
+  }catch(e){ console.error('autoScoreHost failed', e); }
+}
 
 /******************** Roster ********************/
 function loadRosterLocal(){ try{ const raw=localStorage.getItem('msk1pct_roster'); state.players = raw? JSON.parse(raw): []; }catch(e){ state.players=[]; } renderRoster(); }
 function saveRosterLocal(){ localStorage.setItem('msk1pct_roster', JSON.stringify(state.players)); }
 function addNamesLocal(names){ names.split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{ state.players.push({id:crypto.randomUUID(), name:n, passes:3, active:true}); }); saveRosterLocal(); renderRoster(); nameInput.value=''; }
-function renderRoster(){ rosterEl.innerHTML=''; const active=state.players.filter(p=>p.active).length; pCountEl.textContent = state.players.length? `· ${active}/${state.players.length} active` : ''; state.players.forEach(p=>{ const row=document.createElement('div'); row.className='row'; row.style.margin='6px 0'; const left=document.createElement('div'); left.innerHTML=`<b>${escapeHtml(p.name)}</b> <span class="small muted">${p.active?'· In':'· Out'}</span>`; const passes=document.createElement('div'); passes.className='pill'; passes.textContent=`Passes: ${p.passes}`; const passBtn=document.createElement('button'); passBtn.textContent='Pass'; passBtn.onclick=async()=>{ if(p.passes>0) p.passes--; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; const failBtn=document.createElement('button'); failBtn.textContent=p.active?'Fail':'Undo'; failBtn.onclick=async()=>{ p.active=!p.active; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ active:p.active },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; row.append(left,passes,passBtn,failBtn); rosterEl.appendChild(row); }); }
+function renderRoster(){ rosterEl.innerHTML=''; const active=state.players.filter(p=>p.active).length; pCountEl.textContent = state.players.length? `· ${active}/${state.players.length} active` : ''; state.players.forEach(p=>{ const row=document.createElement('div'); row.className='row'; row.style.margin='6px 0'; const left=document.createElement('div'); left.innerHTML=`<b>${escapeHtml(p.name)}</b> <span class="small muted">${p.active?'· In':'· Out'}</span>`; const passes=document.createElement('div'); passes.className='pill'; const letters='ABCD'; const choice=(state.cloud.answers && (p.id in state.cloud.answers)) ? state.cloud.answers[p.id] : null; if(choice==null){ passes.textContent = `Passes: ${p.passes} • Ans: —`; } else { passes.textContent = `Passes: ${p.passes} • Ans: ${letters[choice]}`; if(state.revealed){ const correct=QUESTIONS[state.idx].c; passes.classList.add(choice===correct?'ok':'bad'); } } const passBtn=document.createElement('button'); passBtn.textContent='Pass'; passBtn.onclick=async()=>{ if(p.passes>0) p.passes--; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; const failBtn=document.createElement('button'); failBtn.textContent=p.active?'Fail':'Undo'; failBtn.onclick=async()=>{ p.active=!p.active; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ active:p.active },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; row.append(left,passes,passBtn,failBtn); rosterEl.appendChild(row); }); }
 function clearRoster(){ if(confirm('Clear all players?')){ state.players=[]; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ /* manual cloud clear if desired */ } else { saveRosterLocal(); } renderRoster(); } }
 function giveAllPass(){ state.players.forEach(p=>{ if(p.active) p.passes = Math.max(0, p.passes-1); }); if(state.mode==='host'&&firebaseReady&&state.cloud.room){ state.players.forEach(async p=>{ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); }); } else { saveRosterLocal(); } renderRoster(); }
 function reviveAll(){ state.players.forEach(p=> p.active=true); if(state.mode==='host'&&firebaseReady&&state.cloud.room){ state.players.forEach(async p=>{ await playersCol().doc(p.id).set({ active:true },{merge:true}); }); } else { saveRosterLocal(); } renderRoster(); }
@@ -404,6 +406,7 @@ nextBtn.onclick = ()=> state.mode==='host'? hostNext() : nextLocal();
 lockBtn.onclick= lockIn;
 
 soundChip.onclick = ()=>{ state.sound=!state.sound; soundChip.textContent = state.sound? '🔊 Sound: On' : '🔈 Sound: Off'; ensureAC(); if(state.sound) sfxTick(); };
+scoreChip.onclick = ()=>{ state.autoScore = !state.autoScore; localStorage.setItem('msk1pct_autoScore', JSON.stringify(state.autoScore)); paintScoreChip(); };
 
 addBtn.onclick = ()=> state.mode==='local'? addNamesLocal(nameInput.value) : alert('In Host mode, roster fills from players joining the room.');
 clearRosterBtn.onclick = clearRoster; allPassBtn.onclick = giveAllPass; reviveBtn.onclick = reviveAll;
@@ -423,14 +426,13 @@ function switchMode(which){ state.mode=which; setActiveTab(which); setRoleBadge(
 
 /******************** Paint cloud UI ********************/
 function onRoomChanged(){ paintRoomUi(); if(state.cloud.room){ subscribeRoom(); } }
-function paintRoomUi(){ setCloudChip(); const hasRoom=!!state.cloud.room; roomBadge.hidden=!hasRoom; roomBadge.textContent='Room: '+(state.cloud.room||'—'); if(state.mode==='host'){ closeRoomBtn.disabled=!hasRoom; createRoomBtn.disabled=!firebaseReady || hasRoom; roomInfo.hidden=!hasRoom; countsBox.hidden=!hasRoom; hostHint.hidden=hasRoom; // host controls only when a room exists
-    startBtn.disabled=!hasRoom; revealBtn.disabled=!hasRoom; nextBtn.disabled=!hasRoom; }
+function paintRoomUi(){ setCloudChip(); paintScoreChip(); const hasRoom=!!state.cloud.room; roomBadge.hidden=!hasRoom; roomBadge.textContent='Room: '+(state.cloud.room||'—'); if(state.mode==='host'){ closeRoomBtn.disabled=!hasRoom; createRoomBtn.disabled=!firebaseReady || hasRoom; roomInfo.hidden=!hasRoom; countsBox.hidden=!hasRoom; hostHint.hidden=hasRoom; startBtn.disabled=!hasRoom; revealBtn.disabled=!hasRoom; nextBtn.disabled=!hasRoom; }
   else if(state.mode==='player'){ joinBtn.disabled=!firebaseReady; playerHint.textContent = firebaseReady? 'Enter code + name, then join.' : 'Cloud is Off — add Firebase config in the file to enable joining rooms.'; startBtn.disabled=true; revealBtn.disabled=true; nextBtn.disabled=true; }
   else { roomInfo.hidden=true; countsBox.hidden=true; roomBadge.hidden=true; startBtn.disabled=false; revealBtn.disabled=true; nextBtn.disabled=true; }
 }
 
 /******************** Init ********************/
-function init(){ setCloudChip(); setRoleBadge(); buildEmptyLadder(); resetLocal(); const params=new URLSearchParams(location.search); const pre=(params.get('room')||'').toUpperCase(); if(pre){ switchMode('player'); joinCode.value=pre; } }
+function init(){ setCloudChip(); setRoleBadge(); paintScoreChip(); buildEmptyLadder(); resetLocal(); const params=new URLSearchParams(location.search); const pre=(params.get('room')||'').toUpperCase(); if(pre){ switchMode('player'); joinCode.value=pre; } }
 init();
 </script>
 </body>
