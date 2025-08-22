@@ -232,20 +232,24 @@
 
     // 👉 Paste your Firebase project config here
     const FIREBASE_CONFIG = {
-     apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
+  apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
   authDomain: "percent-club-76c05.firebaseapp.com",
+  databaseURL: "https://percent-club-76c05-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "percent-club-76c05",
   storageBucket: "percent-club-76c05.appspot.com",
   messagingSenderId: "87140817040",
   appId: "1:87140817040:web:aee1db0e278e641f97a015",
-  measurementId: "G-8V0MWEYWLZ",
-  databaseURL: "https://percent-club-76c05-default-rtdb.europe-west1.firebasedatabase.app/"
-    };
+  measurementId: "G-8V0MWEYWLZ"
+};
 
     // --- App state ---
     const app = initializeApp(FIREBASE_CONFIG);
     const auth = getAuth(app);
     const db = getDatabase(app);
+
+    // Align host timers with Firebase server clock
+    let serverOffset = 0;
+    onValue(ref(db, '.info/serverTimeOffset'), (snap)=> { serverOffset = snap.val() || 0; });
 
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
@@ -388,7 +392,7 @@
       const secs = parseInt(answerWindow.value,10);
       const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
       const curSnap = await get(currentRef); const cur = curSnap.val();
-      const deadline = Date.now() + secs*1000;
+      const deadline = Date.now() + serverOffset + secs*1000;
       await update(currentRef, {
         phase:'revealed', prompt:qPrompt.value.trim(), choices, deadline
       });
@@ -397,7 +401,7 @@
     // Lock answers now (forces deadline to now)
     lockBtn.addEventListener('click', async ()=>{
       const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
-      await update(currentRef, { phase:'locked', deadline: Date.now() });
+      await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
     });
 
     // Score: reveal correct & eliminate wrong
@@ -528,9 +532,9 @@
       const code = state.room; const cur = state.current; if(!cur || cur.phase!=='revealed') return;
       const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${state.uid}`);
       try{
-        await set(ansRef, { index, at: Date.now() });
+        await set(ansRef, { index, at: Date.now() + serverOffset });
         // highlight selection locally
-        $$('.answerBtn').forEach((b,bi)=> b.classList.toggle('selected', bi===index));
+        $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
       }catch(err){ alert('Answer not accepted (maybe time is up).'); console.error(err); }
     }
 
