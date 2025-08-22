@@ -277,27 +277,27 @@
   <!-- 🔧 Replace FIREBASE_CONFIG below with your actual Firebase web config -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
-    import { getAuth, onAuthStateChanged, signInAnonymously, updateProfile } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
-    import { getDatabase, ref, child, get, set, update, onValue, onChildAdded, onChildRemoved, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
+    import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+    import { getDatabase, ref, child, get, set, update, onValue, onDisconnect } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 
     // 👉 Paste your Firebase project config here
     const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
-  authDomain: "percent-club-76c05.firebaseapp.com",
-  databaseURL: "https://percent-club-76c05-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "percent-club-76c05",
-  storageBucket: "percent-club-76c05.appspot.com",
-  messagingSenderId: "87140817040",
-  appId: "1:87140817040:web:aee1db0e278e641f97a015",
-  measurementId: "G-8V0MWEYWLZ"
-};
+      apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
+      authDomain: "percent-club-76c05.firebaseapp.com",
+      databaseURL: "https://percent-club-76c05-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "percent-club-76c05",
+      storageBucket: "percent-club-76c05.appspot.com",
+      messagingSenderId: "87140817040",
+      appId: "1:87140817040:web:aee1db0e278e641f97a015",
+      measurementId: "G-8V0MWEYWLZ"
+    };
 
     // --- App state ---
     const app = initializeApp(FIREBASE_CONFIG);
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // Align host timers with Firebase server clock
+    // Align timers with Firebase server clock
     let serverOffset = 0;
     onValue(ref(db, '.info/serverTimeOffset'), (snap)=> { serverOffset = snap.val() || 0; });
 
@@ -315,9 +315,6 @@
     const joinCode = els('#joinCode');
     const displayName = els('#displayName');
     const joinBtn = els('#joinBtn');
-    // Disable action buttons until auth is ready
-    createRoomBtn.disabled = true;
-    joinBtn.disabled = true;
 
     const hostUI = els('#hostUI');
     const roomCodeHost = els('#roomCodeHost');
@@ -356,7 +353,7 @@
     const msg = els('#msg');
     const eliminated = els('#eliminated');
 
-    // Question bank elements (new)
+    // Question bank elements
     const bankText = els('#bankText');
     const importBankBtn = els('#importBankBtn');
     const stageNextBtn = els('#stageNextBtn');
@@ -366,16 +363,11 @@
     // Helpers
     const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
-    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 
-    // Auth flow
+    // Auth flow (disable actions until ready)
+    createRoomBtn.disabled = true; joinBtn.disabled = true;
     onAuthStateChanged(auth, async (user)=>{
-      if(user){
-        state.uid = user.uid;
-        createRoomBtn.disabled = false;
-        joinBtn.disabled = false;
-        return;
-      }
+      if(user){ state.uid = user.uid; createRoomBtn.disabled = false; joinBtn.disabled = false; return; }
       await signInAnonymously(auth);
     });
 
@@ -395,9 +387,8 @@
         allowJoin: true,
         playerLimit: limit,
         qIndex: 0,
-        createdAt: Date.now()
+        createdAt: Date.now() + serverOffset
       });
-      // init current minimal (hidden)
       await set(child(roomRef,'current'), { phase:'hidden', qid:0 });
       state.room = code; state.host = true;
       enterHost();
@@ -421,7 +412,7 @@
 
       // Upsert player profile
       await update(child(roomRef,`players/${state.uid}`), {
-        name, present:true, eliminated:false, joinedAt: Date.now()
+        name, present:true, eliminated:false, joinedAt: Date.now() + serverOffset
       });
       // Clean up on disconnect
       const meRef = child(roomRef,`players/${state.uid}/present`);
@@ -431,7 +422,7 @@
       enterPlayer();
     });
 
-    // ---- Host UI handlers ----
+    // Host UI handlers
     async function enterHost(){
       landing.classList.add('hide');
       hostUI.classList.remove('hide');
@@ -443,7 +434,7 @@
     stageHiddenBtn.addEventListener('click', async ()=>{
       const code = state.room; if(!code) return;
       const metaRef = ref(db, `rooms/${code}/meta`);
-      const metaSnap = await get(metaRef); const meta = metaSnap.val();
+      const metaSnap = await get(metaRef); const meta = metaSnap.val()||{};
       const qid = (meta.qIndex||0)+1;
       await update(metaRef, { qIndex: qid });
       await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null });
@@ -458,11 +449,8 @@
       if(choices.some(c=>!c || !c.trim())) return alert('Enter all 4 choices');
       const secs = parseInt(answerWindow.value,10);
       const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
-      const curSnap = await get(currentRef); const cur = curSnap.val();
       const deadline = Date.now() + serverOffset + secs*1000;
-      await update(currentRef, {
-        phase:'revealed', prompt:qPrompt.value.trim(), choices, deadline
-      });
+      await update(currentRef, { phase:'revealed', prompt:qPrompt.value.trim(), choices, deadline });
     });
 
     // Lock answers now (forces deadline to now)
@@ -471,78 +459,69 @@
       await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
     });
 
-    // Score: reveal correct & eliminate wrong
-    scoreBtn.addEventListener('click', async ()=>{
-      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
-      const cur = (await get(currentRef)).val();
-      if(cur.phase === 'hidden') return alert('Reveal first');
-      const cIdx = parseInt(correctIndex.value,10);
-      await update(currentRef, { phase:'result', correctIndex: cIdx });
+    // Score: reveal correct & eliminate wrong + publish stats
+    scoreBtn.addEventListener('click', async () => {
+      const code = state.room;
+      const currentRef = ref(db, `rooms/${code}/current`);
+      const curSnap = await get(currentRef);
+      const cur = curSnap.val();
+      if (!cur || cur.phase === 'hidden') { alert('Reveal first'); return; }
+
+      const cIdx = parseInt(correctIndex.value, 10);
+      await update(currentRef, { phase: 'result', correctIndex: cIdx });
 
       // Fetch answers + players
       const [ansSnap, playersSnap] = await Promise.all([
-        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
-        get(ref(db,`rooms/${code}/players`))
+        get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
+        get(ref(db, `rooms/${code}/players`))
       ]);
-      const answers = ansSnap.exists()? ansSnap.val(): {};
-      const players = playersSnap.exists()? playersSnap.val(): {};
 
+      const answers = ansSnap.exists() ? ansSnap.val() : {};
+      const players = playersSnap.exists() ? playersSnap.val() : {};
+
+      // Eliminate wrong / no-answer
       const updates = {};
-      Object.entries(players).forEach(([uid,p])=>{
-        if(!(p.present && !p.eliminated)) return;
+      for (const [uid, p] of Object.entries(players)) {
+        if (!(p.present && !p.eliminated)) continue;
         const a = answers[uid];
         const wrongOrMissing = !a || a.index !== cIdx;
-        if(wrongOrMissing){ updates[`rooms/${code}/players/${uid}/eliminated`] = true; }
-      });
-      await update(ref(db), updates);
-
-      // Aggregate results and publish lightweight stats into current
-      const counts = [0,0,0,0];
-      let total = 0;
-      Object.values(answers).forEach(a=>{ if(a && Number.isInteger(a.index) && a.index>=0 && a.index<=3){ counts[a.index]++; total++; } });
-      await update(currentRef, { stats: { counts: {0:counts[0],1:counts[1],2:counts[2],3:counts[3]}, total } });
-    });
-
-      // Fetch answers + players
-      const [ansSnap, playersSnap] = await Promise.all([
-        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
-        get(ref(db,`rooms/${code}/players`))
-      ]);
-      const answers = ansSnap.exists()? ansSnap.val(): {};
-      const players = playersSnap.exists()? playersSnap.val(): {};
-
-      const updates = {};
-      let alive = 0, eliminatedCount = 0;
-      Object.entries(players).forEach(([uid, p])=>{ if(p.present && !p.eliminated) alive++; });
-      // eliminate wrong + no-answers
-      Object.entries(players).forEach(([uid,p])=>{
-        if(!(p.present && !p.eliminated)) return;
-        const a = answers[uid];
-        const wrongOrMissing = !a || a.index !== cIdx;
-        if(wrongOrMissing){
-          updates[`rooms/${code}/players/${uid}/eliminated`] = true; eliminatedCount++;
+        if (wrongOrMissing) {
+          updates[`rooms/${code}/players/${uid}/eliminated`] = true;
         }
-      });
-      await update(ref(db), updates);
+      }
+      if (Object.keys(updates).length) await update(ref(db), updates);
+
+      // Aggregate results and publish lightweight stats
+      const counts = [0, 0, 0, 0];
+      let total = 0;
+      for (const a of Object.values(answers)) {
+        if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
+      }
+      await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
     });
 
     // Next question (clear current)
-    nextBtn.addEventListener('click', async ()=>{
-      const code = state.room; const meta = (await get(ref(db,`rooms/${code}/meta`))).val();
-      const qid = (meta.qIndex||0) + 1;
-      await update(ref(db,`rooms/${code}/meta`), { qIndex: qid });
-      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null });
+    nextBtn.addEventListener('click', async () => {
+      const code = state.room;
+      const metaSnap = await get(ref(db, `rooms/${code}/meta`));
+      const meta = metaSnap.val() || {};
+      const qid = (meta.qIndex || 0) + 1;
+
+      await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
+      await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null, stats: null });
+
       qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
       correctIndex.value = '0';
     });
 
+    // Copy invite
     copyInvite.addEventListener('click', async ()=>{
       const url = `${location.origin}${location.pathname}?room=${state.room}`;
       await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
       copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
     });
 
-    // ---- Player UI ----
+    // Player UI
     async function enterPlayer(){
       landing.classList.add('hide');
       playerUI.classList.remove('hide');
@@ -551,168 +530,231 @@
       wireRoomListeners();
     }
 
-// ---- Shared room listeners ----
-function wireRoomListeners(){
-  const code = state.room; if(!code) return;
+    // ---- Shared room listeners ----
+    function wireRoomListeners(){
+      const code = state.room; if(!code) return;
 
-  // Live meta
-  onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
-    const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
-  });
-
-  // Live current (question state)
-  onValue(ref(db,`rooms/${code}/current`), (snap)=>{
-    state.current = snap.val()||{};
-    const cur = state.current;
-
-    // Host view
-    phaseTxt.textContent = cur.phase || '—';
-    deadlineTxt.textContent = cur.deadline? new Date(cur.deadline).toLocaleTimeString(): '—';
-    livePrompt.textContent = cur.prompt || '—';
-    liveChoices.innerHTML = '';
-    if (cur.choices){
-      cur.choices.forEach((c,i)=>{
-        const div = document.createElement('div');
-        div.className='tag';
-        div.textContent = ['A','B','C','D'][i]+': '+c;
-        liveChoices.appendChild(div);
+      // Live meta
+      onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
+        const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
       });
-    }
-    // Host results (histogram)
-    if (state.host){
-      const counts = cur.stats && cur.stats.counts
-        ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
-        : null;
-      renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
-    }
 
-    // Player view (incl. spectator mode)
-    if (!state.host){
-      statusTxt.textContent = state.meEliminated ? 'spectating' : (cur.phase || '—');
+      // Live current (question state)
+      onValue(ref(db,`rooms/${code}/current`), (snap)=>{
+        state.current = snap.val()||{};
+        const cur = state.current;
 
-      if (cur.phase === 'revealed' || cur.phase === 'locked' || cur.phase === 'result'){
-        msg.classList.add('hide');
-        qArea.classList.remove('hide');
-        pPrompt.textContent = cur.prompt || '—';
-        renderAnswerButtons(cur);
-
-        if (cur.phase === 'revealed') startTimer(cur.deadline);
-        else stopTimer();
-
-        // Player histogram only on result
-        const countsP = cur.stats && cur.stats.counts
-          ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
-          : null;
-        if (cur.phase === 'result') {
-          renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
-          revealCorrect(cur);
-        } else {
-          resultsPlayer.innerHTML = '';
+        // Host view
+        phaseTxt.textContent = cur.phase || '—';
+        deadlineTxt.textContent = cur.deadline? new Date(cur.deadline).toLocaleTimeString(): '—';
+        livePrompt.textContent = cur.prompt || '—';
+        liveChoices.innerHTML = '';
+        if (cur.choices){
+          cur.choices.forEach((c,i)=>{
+            const div = document.createElement('div');
+            div.className='tag';
+            div.textContent = ['A','B','C','D'][i]+': '+c;
+            liveChoices.appendChild(div);
+          });
         }
-      } else {
-        // hidden or other phases
-        msg.classList.remove('hide');
-        qArea.classList.add('hide');
-        resultsPlayer.innerHTML = '';
-      }
-    }
-  });
+        // Host results (histogram)
+        if (state.host){
+          const counts = cur.stats && cur.stats.counts
+            ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
+            : null;
+          renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
+        }
 
-  // Players list + alive count
-  onValue(ref(db,`rooms/${code}/players`), (snap)=>{
-    const players = snap.val()||{};
-    const alive = Object.values(players).filter(p=>p.present && !p.eliminated).length;
-    aliveCount.textContent = alive;
+        // Player view (incl. spectator mode)
+        if (!state.host){
+          statusTxt.textContent = state.meEliminated ? 'spectating' : (cur.phase || '—');
 
-    if (state.host){
-      playersList.innerHTML = '';
-      Object.entries(players).forEach(([uid,p])=>{
-        const row = document.createElement('div'); row.className='row';
-        const name = document.createElement('div'); name.textContent = p.name||'Player';
-        const tags = document.createElement('div'); tags.className='row';
-        tags.innerHTML =
-          `<span class="tag">${p.present? 'present':'offline'}</span> `+
-          `<span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>`;
-        row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
+          if (cur.phase === 'revealed' || cur.phase === 'locked' || cur.phase === 'result'){
+            msg.classList.add('hide');
+            qArea.classList.remove('hide');
+            pPrompt.textContent = cur.prompt || '—';
+            renderAnswerButtons(cur);
+
+            if (cur.phase === 'revealed') startTimer(cur.deadline); else stopTimer();
+
+            const countsP = cur.stats && cur.stats.counts
+              ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
+              : null;
+            if (cur.phase === 'result') {
+              renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
+              revealCorrect(cur);
+            } else {
+              resultsPlayer.innerHTML = '';
+            }
+          } else {
+            // hidden or other phases
+            msg.classList.remove('hide');
+            qArea.classList.add('hide');
+            resultsPlayer.innerHTML = '';
+          }
+        }
       });
-    } else {
-      const me = players[state.uid]||{};
-      state.meEliminated = !!me.eliminated;
-      if (state.meEliminated) eliminated.classList.remove('hide');
-      else eliminated.classList.add('hide');
+
+      // Players list + alive count
+      onValue(ref(db,`rooms/${code}/players`), (snap)=>{
+        const players = snap.val()||{};
+        const alive = Object.values(players).filter(p=>p.present && !p.eliminated).length;
+        aliveCount.textContent = alive;
+
+        if (state.host){
+          playersList.innerHTML = '';
+          Object.entries(players).forEach(([uid,p])=>{
+            const row = document.createElement('div'); row.className='row';
+            const name = document.createElement('div'); name.textContent = p.name||'Player';
+            const tags = document.createElement('div'); tags.className='row';
+            tags.innerHTML = `<span class="tag">${p.present? 'present':'offline'}</span> <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>`;
+            row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
+          });
+        } else {
+          const me = players[state.uid]||{};
+          state.meEliminated = !!me.eliminated;
+          if (state.meEliminated) eliminated.classList.remove('hide'); else eliminated.classList.add('hide');
+        }
+      });
     }
-  });
-}
 
-function renderAnswerButtons(cur){
-  answerBtns.innerHTML = '';
-  const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
-  ['A','B','C','D'].forEach((letter,i)=>{
-    const btn = document.createElement('button'); btn.className='answerBtn';
-    btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
-    btn.disabled = !canAnswer;
-    if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
-    answerBtns.appendChild(btn);
-  });
-}
+    function renderAnswerButtons(cur){
+      answerBtns.innerHTML = '';
+      const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
+      ['A','B','C','D'].forEach((letter,i)=>{
+        const btn = document.createElement('button'); btn.className='answerBtn';
+        btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
+        btn.disabled = !canAnswer;
+        if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
+        answerBtns.appendChild(btn);
+      });
+    }
 
-async function submitAnswer(index){
-  const code = state.room; const cur = state.current;
-  if (!cur || cur.phase!=='revealed') return;
-  const uid = auth.currentUser?.uid || state.uid;
-  if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
-  const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
-  try{
-    await set(ansRef, { index, at: Date.now() + serverOffset });
-    // highlight selection locally and prevent resubmits
-    $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
-  }catch(err){
-    alert('Answer not accepted (maybe time is up).'); console.error(err);
-  }
-}
+    async function submitAnswer(index){
+      const code = state.room; const cur = state.current;
+      if (!cur || cur.phase!=='revealed') return;
+      const uid = auth.currentUser?.uid || state.uid;
+      if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
+      const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
+      try{
+        await set(ansRef, { index, at: Date.now() + serverOffset });
+        $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
+      }catch(err){ alert('Answer not accepted (maybe time is up).'); console.error(err); }
+    }
 
-function revealCorrect(cur){
-  if (cur.correctIndex == null) return;
-  $$('.answerBtn').forEach((b,bi)=>{
-    b.classList.toggle('correct', bi===cur.correctIndex);
-    b.classList.toggle('wrong', bi!==cur.correctIndex);
-    b.disabled = true;
-  });
-}
+    function revealCorrect(cur){
+      if (cur.correctIndex == null) return;
+      $$('.answerBtn').forEach((b,bi)=>{
+        b.classList.toggle('correct', bi===cur.correctIndex);
+        b.classList.toggle('wrong', bi!==cur.correctIndex);
+        b.disabled = true;
+      });
+    }
 
-function startTimer(deadline){
-  stopTimer();
-  const tick = ()=>{
-    // compare deadline (server time) to local+offset = server now
-    const ms = Math.max(0, deadline - (Date.now() + serverOffset));
-    const s = Math.ceil(ms/1000);
-    timeLeft.textContent = String(s);
-    if (ms <= 0) stopTimer();
-  };
-  tick();
-  state.timerInt = setInterval(tick, 200);
-}
-function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
+    function startTimer(deadline){
+      stopTimer();
+      const tick = ()=>{
+        const ms = Math.max(0, deadline - (Date.now() + serverOffset));
+        const s = Math.ceil(ms/1000); timeLeft.textContent = String(s);
+        if (ms <= 0) stopTimer();
+      };
+      tick(); state.timerInt = setInterval(tick, 200);
+    }
+    function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
 
-// ----- Results rendering -----
-function renderResults(container, countsArr, total, correctIdx){
-  if(!container) return;
-  if(!countsArr){ container.innerHTML=''; return; }
-  const labels = ['A','B','C','D'];
-  const max = Math.max(1, ...countsArr);
-  container.innerHTML = countsArr.map((n,i)=>{
-    const pct = total? Math.round(n*100/total) : 0;
-    const barW = Math.max(5, Math.round((n/max)*100));
-    const strong = (i===Number(correctIdx)) ? 'font-weight:700;' : '';
-    return `<div class="row" style="gap:8px; align-items:center">
-      <div class="tag" style="min-width:2rem; ${strong}">${labels[i]}</div>
-      <div style="flex:1; border:1px solid var(--edge); border-radius:999px; overflow:hidden">
-        <div style="height:12px; width:${barW}%;"></div>
-      </div>
-      <div class="small" style="min-width:72px; text-align:right">${n} (${pct}%)</div>
-    </div>`;
-  }).join('');
-}
-</script>
+    // ----- Results rendering -----
+    function renderResults(container, countsArr, total, correctIdx){
+      if(!container) return;
+      if(!countsArr){ container.innerHTML=''; return; }
+      const labels = ['A','B','C','D'];
+      const max = Math.max(1, ...countsArr);
+      container.innerHTML = countsArr.map((n,i)=>{
+        const pct = total? Math.round(n*100/total) : 0;
+        const barW = Math.max(5, Math.round((n/max)*100));
+        const strong = (i===Number(correctIdx)) ? 'font-weight:700;' : '';
+        return `<div class="row" style="gap:8px; align-items:center">
+          <div class="tag" style="min-width:2rem; ${strong}">${labels[i]}</div>
+          <div style="flex:1; border:1px solid var(--edge); border-radius:999px; overflow:hidden">
+            <div style="height:12px; width:${barW}%; background:#1f2a55"></div>
+          </div>
+          <div class="small" style="min-width:72px; text-align:right">${n} (${pct}%)</div>
+        </div>`;
+      }).join('');
+    }
+
+    // ---- Question bank: import and stage ----
+    function parseBank(text){
+      text = text.trim();
+      if(!text) return [];
+      // Try JSON first
+      try{
+        const data = JSON.parse(text);
+        const arr = Array.isArray(data) ? data : [data];
+        return arr.map(normalizeItem).filter(Boolean);
+      }catch(_){ /* fallthrough */ }
+      // CSV fallback (simple, comma-separated, with header)
+      const lines = text.split(/
+?
+/).filter(Boolean);
+      if(lines.length < 2) return [];
+      const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
+      const idx = (k)=> header.indexOf(k);
+      const out = [];
+      for(let i=1;i<lines.length;i++){
+        const cols = lines[i].split(',');
+        const item = {
+          prompt: cols[idx('prompt')]?.trim(),
+          A: cols[idx('a')]?.trim(),
+          B: cols[idx('b')]?.trim(),
+          C: cols[idx('c')]?.trim(),
+          D: cols[idx('d')]?.trim(),
+          correct: cols[idx('correct')]?.trim(),
+          seconds: Number(cols[idx('seconds')]||30)
+        };
+        const norm = normalizeItem(item);
+        if(norm) out.push(norm);
+      }
+      return out;
+    }
+
+    function normalizeItem(raw){
+      if(!raw) return null;
+      const prompt = raw.prompt || raw.question || '';
+      let options = raw.options || [raw.A, raw.B, raw.C, raw.D];
+      if(!Array.isArray(options) || options.length<4) return null;
+      options = options.slice(0,4);
+      let correctIndex = typeof raw.correctIndex === 'number' ? raw.correctIndex : null;
+      if(correctIndex == null && typeof raw.correct === 'string'){
+        const map = {A:0,B:1,C:2,D:3};
+        correctIndex = map[raw.correct.toUpperCase?.()||''];
+      }
+      const seconds = Number(raw.seconds || 30);
+      if(!(Number.isInteger(correctIndex) && correctIndex>=0 && correctIndex<=3)) return null;
+      return { prompt, options, correctIndex, seconds };
+    }
+
+    importBankBtn.addEventListener('click', ()=>{
+      const arr = parseBank(bankText.value);
+      state.bank = arr; state.bankIndex = 0;
+      bankCount.textContent = String(arr.length);
+      bankNext.textContent = String(arr.length ? 1 : 0);
+      alert(arr.length ? `Loaded ${arr.length} questions` : 'No valid questions found');
+    });
+
+    stageNextBtn.addEventListener('click', ()=>{
+      const i = state.bankIndex;
+      if(!state.bank.length || i >= state.bank.length) { alert('Bank empty or finished'); return; }
+      const item = state.bank[i];
+      qPrompt.value = item.prompt;
+      opt0.value = item.options[0]||'';
+      opt1.value = item.options[1]||'';
+      opt2.value = item.options[2]||'';
+      opt3.value = item.options[3]||'';
+      correctIndex.value = String(item.correctIndex||0);
+      answerWindow.value = String(item.seconds||30);
+      state.bankIndex++;
+      bankNext.textContent = String(Math.min(state.bankIndex+1, state.bank.length));
+    });
+  </script>
 </body>
 </html>
