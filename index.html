@@ -250,7 +250,10 @@ let firebaseReady = false, db = null, myUid = null;
     if (cloudChip) cloudChip.textContent = '☁️ Cloud: Off';
   }
 })();
-let firebaseReady = false, db = null, myUid = null;
+firebaseReady = true;  // not: let firebaseReady = true;
+db = firebase.firestore();
+myUid = u ? u.uid : null;
+
 (function initFirebase(){
     try {
     firebase.initializeApp(FB_CONFIG);
