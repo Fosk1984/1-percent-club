@@ -7,35 +7,19 @@
   <meta name="description" content="Multiplayer 1% Club style quiz for clinical MSK (non‑ultrasound). Single‑file GitHub Pages app with optional Firebase sync." />
   <link rel="icon" href="data:,"><!-- silence favicon 404 on GitHub Pages -->
   <style>
-    :root{
-      --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf;
-      --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b; --edge:#26315a;
-      --glow:0 10px 40px rgba(106,194,255,.25);
-    }
+    :root{ --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf; --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b; --edge:#26315a; --glow:0 10px 40px rgba(106,194,255,.25); }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{
-      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      color:var(--ink); background:
-        radial-gradient(1200px 800px at 20% -10%, #142043 0%, #0f1730 40%, var(--bg) 100%) fixed;
-      line-height:1.35;
-    }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:var(--ink);
+      background: radial-gradient(1200px 800px at 20% -10%, #142043 0%, #0f1730 40%, var(--bg) 100%) fixed; line-height:1.35; }
     .wrap{display:grid; grid-template-rows:auto 1fr; min-height:100vh}
-    header{
-      display:flex; gap:12px; align-items:center; justify-content:space-between;
-      padding:14px 18px; border-bottom:1px solid var(--edge); background:rgba(18,23,42,.6);
-      backdrop-filter: blur(8px);
-    }
+    header{ display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--edge); background:rgba(18,23,42,.6); backdrop-filter: blur(8px); }
     h1{margin:0; font-size:clamp(18px, 2.2vw, 28px); letter-spacing:.3px}
     .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
     .roleTabs{display:flex; gap:6px; background:#0e1430; border:1px solid var(--edge); border-radius:12px; padding:4px}
     .roleTabs button{appearance:none; border:none; background:transparent; color:var(--ink); padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700}
     .roleTabs button.active{background:#0b132d; outline:2px solid rgba(106,194,255,.25)}
-    button, .chip{
-      appearance:none; border:1px solid var(--edge); background:#0e1430; color:var(--ink);
-      padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600; box-shadow:var(--glow);
-      transition: transform .06s ease, background .2s ease, border-color .2s ease;
-    }
+    button, .chip{ appearance:none; border:1px solid var(--edge); background:#0e1430; color:var(--ink); padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600; box-shadow:var(--glow); transition: transform .06s ease, background .2s ease, border-color .2s ease; }
     button:hover{transform:translateY(-1px); border-color:var(--acc)}
     button:disabled{opacity:.5; cursor:not-allowed}
     .chip{font-size:13px; user-select:none}
@@ -43,14 +27,10 @@
     .main{display:grid; grid-template-columns:280px 1fr 340px; gap:16px; padding:16px}
     @media (max-width:1100px){ .main{grid-template-columns:1fr; grid-auto-rows:min-content} }
 
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.0));
-      border:1px solid var(--edge); border-radius:18px; padding:16px; box-shadow:var(--glow)
-    }
+    .card{ background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.0)); border:1px solid var(--edge); border-radius:18px; padding:16px; box-shadow:var(--glow) }
     .titleRow{display:flex; align-items:center; justify-content:space-between; gap:10px}
     .ladder{display:flex; flex-direction:column; gap:8px}
-    .ladder .step{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px;
-      border-radius:12px; border:1px solid var(--edge); background:#0e1430}
+    .ladder .step{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-radius:12px; border:1px solid var(--edge); background:#0e1430}
     .ladder .step.current{border-color:var(--acc); outline:2px solid rgba(106,194,255,.25)}
     .ladder .step.done{opacity:.75}
     .pct{font-weight:800}
@@ -60,10 +40,8 @@
     .opts{display:grid; grid-template-columns:1fr 1fr; gap:10px}
     @media (max-width:600px){ .opts{grid-template-columns:1fr} }
 
-    .opt{display:flex; align-items:center; gap:10px; padding:14px; border-radius:14px; border:1px solid var(--edge);
-      background:#0b132d; text-align:left; font-weight:600}
-    .opt .k{width:28px; height:28px; display:inline-grid; place-items:center; border-radius:8px; background:#0a1027;
-      border:1px solid var(--edge); font-weight:800}
+    .opt{display:flex; align-items:center; gap:10px; padding:14px; border-radius:14px; border:1px solid var(--edge); background:#0b132d; text-align:left; font-weight:600}
+    .opt .k{width:28px; height:28px; display:inline-grid; place-items:center; border-radius:8px; background:#0a1027; border:1px solid var(--edge); font-weight:800}
     .opt.selected{border-color:var(--acc); outline:2px solid rgba(106,194,255,.25)}
     .opt.correct{border-color:var(--ok); background:rgba(51,209,122,.08)}
     .opt.wrong{border-color:var(--bad); background:rgba(255,107,107,.08)}
@@ -196,73 +174,44 @@
   </main>
 </div>
 
-<!-- Optional Firebase (fill config to enable cloud sync). Keep these 3 lines; they’re safe if unused. -->
+<!-- Firebase compat SDKs (load BEFORE game script) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
 <script>
 'use strict';
 
-/******************** Firebase bootstrap (optional) ********************/
-// 1) Fill your config below. If left as-is, cloud sync stays Off and Local mode works normally.
-const FB_CONFIG = {
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
+/******************** Firebase bootstrap (compat) ********************/
+// Paste YOUR Firebase config here
+window.FB_CONFIG = {
+  apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
+  authDomain: "percent-club-76c05.firebaseapp.com",
+  projectId: "percent-club-76c05",
+  storageBucket: "percent-club-76c05.appspot.com",
+  messagingSenderId: "87140817040",
+  appId: "1:87140817040:web:5ff5bae0a42c999097a015",
+  measurementId: "G-G7FMP4XBFN"
+};
 
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-    apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
-    authDomain: "percent-club-76c05.firebaseapp.com",
-    projectId: "percent-club-76c05",
-    storageBucket: "percent-club-76c05.firebasestorage.app",
-    messagingSenderId: "87140817040",
-    appId: "1:87140817040:web:5ff5bae0a42c999097a015",
-    measurementId: "G-G7FMP4XBFN"
-  };
-// Accept either FB_CONFIG or firebaseConfig to be forgiving
-const _CFG = window.FB_CONFIG || window.firebaseConfig;
-
-let firebaseReady = false, db = null, myUid = null;
+// Globals (defined once)
+if (typeof window.firebaseReady === 'undefined') window.firebaseReady = false;
+if (typeof window.db === 'undefined') window.db = null;
+if (typeof window.myUid === 'undefined') window.myUid = null;
 
 (function safeInitFirebase(){
   try {
-    if (!_CFG || !_CFG.apiKey) throw new Error('Missing Firebase config');
-
-    // Idempotent init (won't throw if already initialised)
-    if (!firebase.apps.length) {
-      firebase.initializeApp(_CFG);
-    }
-
-    db = firebase.firestore();
-
-    // Anonymous auth (non-blocking)
+    const cfg = window.FB_CONFIG || window.firebaseConfig; // accept either name
+    if (!cfg || !cfg.apiKey) throw new Error('Missing Firebase config');
+    if (!firebase.apps.length) firebase.initializeApp(cfg); // compat init
+    window.db = firebase.firestore();
     firebase.auth().signInAnonymously().catch(console.warn);
-    firebase.auth().onAuthStateChanged(u => { myUid = u ? u.uid : null; });
-
-    firebaseReady = true;
-    // (Optional) if you have a chip element:
-    const cloudChip = document.getElementById('cloudChip');
-    if (cloudChip) cloudChip.textContent = '☁️ Cloud: On';
+    firebase.auth().onAuthStateChanged(u => { window.myUid = u ? u.uid : null; });
+    window.firebaseReady = true;
+    const chip=document.getElementById('cloudChip'); if(chip) chip.textContent='☁️ Cloud: On';
   } catch (e) {
     console.error('Firebase init failed:', e);
-    firebaseReady = false;
-    const cloudChip = document.getElementById('cloudChip');
-    if (cloudChip) cloudChip.textContent = '☁️ Cloud: Off';
-  }
-})();
-firebaseReady = true;  // not: let firebaseReady = true;
-db = firebase.firestore();
-myUid = u ? u.uid : null;
-
-(function initFirebase(){
-    try {
-    firebase.initializeApp(FB_CONFIG);
-    const db = firebase.firestore();
-    firebase.auth().signInAnonymously();
-    firebase.auth().onAuthStateChanged(u => { myUid = u ? u.uid : null; });
-    firebaseReady = true;
-  } catch (e) {
-    firebaseReady = false;
+    window.firebaseReady = false;
+    const chip=document.getElementById('cloudChip'); if(chip) chip.textContent='☁️ Cloud: Off';
   }
 })();
 
@@ -286,15 +235,7 @@ const QUESTIONS = [
 ];
 
 /******************** State ********************/
-const state = {
-  mode: 'local', // 'local' | 'host' | 'player'
-  idx: -1,
-  selected: null,
-  revealed: false,
-  sound: false,
-  players: [], // local roster [{id,name,passes,active}]
-  cloud: { room:null, unsubRoom:null, unsubCounts:null, unsubPlayers:null },
-};
+const state = { mode:'local', idx:-1, selected:null, revealed:false, sound:false, players:[], cloud:{ room:null, unsubRoom:null, unsubCounts:null, unsubPlayers:null } };
 
 /******************** Elements ********************/
 const ladderEl = document.getElementById('ladder');
@@ -347,14 +288,12 @@ const joinCode=document.getElementById('joinCode');
 const joinBtn=document.getElementById('joinBtn');
 const playerHint=document.getElementById('playerHint');
 
-// Multi panel wrapper (for show/hide)
+// Multi panel wrapper
 const mpanel=document.getElementById('mpanel');
 
-/******************** Audio (no external files) ********************/
-let AC=null; function ensureAC(){ if(!state.sound) return; if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
-function tone(freq=440, dur=0.08){ if(!state.sound||!AC) return; const o=AC.createOscillator(), g=AC.createGain(); o.type='sine'; o.frequency.value=freq; o.connect(g); g.connect(AC.destination); const t=AC.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.2,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-  o.start(t); o.stop(t+dur+0.01);
-}
+/******************** Audio ********************/
+let AC=null; function ensureAC(){ if(!state.sound) return; if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+function tone(f=440,d=0.08){ if(!state.sound||!AC) return; const o=AC.createOscillator(), g=AC.createGain(); o.type='sine'; o.frequency.value=f; o.connect(g); g.connect(AC.destination); const t=AC.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.2,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.start(t); o.stop(t+d+0.01); }
 function sfxCorrect(){ ensureAC(); [523,659,784].forEach((f,i)=>setTimeout(()=>tone(f,0.09),i*90)); }
 function sfxWrong(){ ensureAC(); [220,180,150].forEach((f,i)=>setTimeout(()=>tone(f,0.12),i*110)); }
 function sfxTick(){ ensureAC(); tone(420,0.05); }
@@ -364,167 +303,63 @@ function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;"
 function setStatus(html){ statusEl.innerHTML = html; }
 function setRoleBadge(){ roleBadge.textContent = state.mode.charAt(0).toUpperCase()+state.mode.slice(1); }
 function setCloudChip(){ cloudChip.textContent = firebaseReady? '☁️ Cloud: On' : '☁️ Cloud: Off'; }
-function byId(id){ return document.getElementById(id); }
 
 /******************** Ladder ********************/
-function renderLadder(){
-  ladderEl.innerHTML = '';
-  QUESTIONS.forEach((q,i)=>{
-    const div=document.createElement('div'); div.className='step'+(i<state.idx?' done':'')+(i===state.idx?' current':'');
-    const left=document.createElement('div'); left.innerHTML = `<span class="pct">${q.pct}%</span>`;
-    const right=document.createElement('div'); right.className='small muted'; right.textContent = i<state.idx? '✔' : (i===state.idx? 'Now' : 'Up next');
-    div.append(left,right); ladderEl.appendChild(div);
-  });
-}
+function renderLadder(){ ladderEl.innerHTML=''; QUESTIONS.forEach((q,i)=>{ const d=document.createElement('div'); d.className='step'+(i<state.idx?' done':'')+(i===state.idx?' current':''); const l=document.createElement('div'); l.innerHTML=`<span class="pct">${q.pct}%</span>`; const r=document.createElement('div'); r.className='small muted'; r.textContent = i<state.idx? '✔' : (i===state.idx? 'Now' : 'Up next'); d.append(l,r); ladderEl.appendChild(d); }); }
 function buildEmptyLadder(){ ladderEl.innerHTML=''; QUESTIONS.forEach(()=>{ const d=document.createElement('div'); d.className='step'; d.innerHTML='<span class="pct">—%</span><span class="small muted">—</span>'; ladderEl.appendChild(d); }); }
 
 /******************** Core rendering ********************/
 function showQuestion(){
-  if(state.idx<0){ qPctEl.textContent='—%'; qTextEl.innerHTML = msgIntro(); optsEl.innerHTML=''; noteEl.hidden=true; noteEl.innerHTML=''; renderLadder(); return; }
-  const q = QUESTIONS[state.idx];
-  qPctEl.textContent = q.pct + '%';
-  qTextEl.innerHTML = q.q;
-  noteEl.hidden = true; noteEl.innerHTML = '';
-  optsEl.innerHTML = '';
-  ['A','B','C','D'].forEach((label,ix)=>{
-    const b=document.createElement('button'); b.className='opt'; b.dataset.idx=ix;
-    b.innerHTML = `<span class="k">${label}</span> <span>${q.a[ix]}</span>`;
-    b.onclick=()=>select(ix);
-    optsEl.appendChild(b);
-  });
+  if(state.idx<0){ qPctEl.textContent='—%'; qTextEl.innerHTML=msgIntro(); optsEl.innerHTML=''; noteEl.hidden=true; noteEl.innerHTML=''; renderLadder(); return; }
+  const q=QUESTIONS[state.idx];
+  qPctEl.textContent=q.pct+'%';
+  qTextEl.innerHTML=q.q; noteEl.hidden=true; noteEl.innerHTML=''; optsEl.innerHTML='';
+  ['A','B','C','D'].forEach((lab,ix)=>{ const b=document.createElement('button'); b.className='opt'; b.dataset.idx=ix; b.innerHTML=`<span class="k">${lab}</span> <span>${q.a[ix]}</span>`; b.onclick=()=>select(ix); optsEl.appendChild(b); });
   state.selected=null; state.revealed=false;
-  if(state.mode==='player') { lockBtn.disabled=true; revealBtn.disabled=true; nextBtn.disabled=true; startBtn.disabled=true; }
-  else { revealBtn.disabled = true; nextBtn.disabled=true; lockBtn.disabled=true; }
+  if(state.mode==='player'){ lockBtn.disabled=true; revealBtn.disabled=true; nextBtn.disabled=true; startBtn.disabled=true; }
+  else { revealBtn.disabled=true; nextBtn.disabled=true; lockBtn.disabled=true; }
   setStatus('Pick an answer, then <b>Lock In</b> (or host reveal if synced).');
   renderLadder();
 }
-function msgIntro(){
-  return 'Choose a mode above. <b>Local</b> runs on one screen. <b>Host</b> creates a room; <b>Player</b> joins from another device.';
-}
+function msgIntro(){ return 'Choose a mode above. <b>Local</b> runs on one screen. <b>Host</b> creates a room; <b>Player</b> joins from another device.'; }
 
 /******************** Local game flow ********************/
-function select(ix){ if(state.revealed) return; state.selected = ix; updateSelection(); sfxTick(); if(state.mode==='player') submitAnswer(ix); lockBtn.disabled=false; setStatus('Answer selected. <b>Lock In</b> to proceed.'); }
-function updateSelection(){ [...optsEl.children].forEach(btn=>{ btn.classList.toggle('selected', Number(btn.dataset.idx)===state.selected); }); }
+function select(ix){ if(state.revealed) return; state.selected=ix; updateSelection(); sfxTick(); if(state.mode==='player') submitAnswer(ix); lockBtn.disabled=false; setStatus('Answer selected. <b>Lock In</b> to proceed.'); }
+function updateSelection(){ [...optsEl.children].forEach(btn=>btn.classList.toggle('selected', Number(btn.dataset.idx)===state.selected)); }
 function lockIn(){ if(state.selected==null) return; revealBtn.disabled=false; lockBtn.disabled=true; setStatus('Ready to reveal. (<span class="kb">R</span>)'); }
-function revealLocal(){ if(state.revealed||state.selected==null) return; const q=QUESTIONS[state.idx];
-  const correct = q.c;
-  [...optsEl.children].forEach(btn=>{
-    const ix=Number(btn.dataset.idx);
-    btn.disabled=true;
-    if(ix===correct) btn.classList.add('correct');
-    if(ix===state.selected && ix!==correct) btn.classList.add('wrong');
-  });
-  noteEl.hidden=false; noteEl.innerHTML = q.note;
-  state.revealed=true; nextBtn.disabled=false; revealBtn.disabled=true;
-  setStatus( (state.selected===q.c)? '<b>Correct!</b>' : '<b>Wrong.</b>' );
-  (state.selected===q.c? sfxCorrect(): sfxWrong());
-}
+function revealLocal(){ if(state.revealed||state.selected==null) return; const q=QUESTIONS[state.idx]; const c=q.c; [...optsEl.children].forEach(btn=>{ const ix=Number(btn.dataset.idx); btn.disabled=true; if(ix===c) btn.classList.add('correct'); if(ix===state.selected && ix!==c) btn.classList.add('wrong'); }); noteEl.hidden=false; noteEl.innerHTML=q.note; state.revealed=true; nextBtn.disabled=false; revealBtn.disabled=true; setStatus((state.selected===c)?'<b>Correct!</b>':'<b>Wrong.</b>'); (state.selected===c? sfxCorrect(): sfxWrong()); }
 function nextLocal(){ if(!state.revealed) return; if(state.idx>=QUESTIONS.length-1){ endGame(); return; } state.idx++; showQuestion(); }
 function startLocal(){ state.idx=0; showQuestion(); startBtn.disabled=true; }
-function resetLocal(){ state.idx=-1; state.selected=null; state.revealed=false; startBtn.disabled=false; revealBtn.disabled=true; nextBtn.disabled=true; lockBtn.disabled=true;
-  qPctEl.textContent='—%'; qTextEl.innerHTML=msgIntro(); optsEl.innerHTML=''; noteEl.hidden=true; noteEl.innerHTML=''; setStatus(''); renderLadder(); }
+function resetLocal(){ state.idx=-1; state.selected=null; state.revealed=false; startBtn.disabled=false; revealBtn.disabled=true; nextBtn.disabled=true; lockBtn.disabled=true; qPctEl.textContent='—%'; qTextEl.innerHTML=msgIntro(); optsEl.innerHTML=''; noteEl.hidden=true; noteEl.innerHTML=''; setStatus(''); renderLadder(); }
 function endGame(){ setStatus('<b>1% question complete!</b> Congratulate your champions.'); qTextEl.innerHTML='🎉 You reached the 1% Club!'; optsEl.innerHTML=''; noteEl.hidden=true; revealBtn.disabled=true; nextBtn.disabled=true; lockBtn.disabled=true; }
 
-/******************** Cloud (Firestore) — room model ********************/
-// rooms/{CODE}: { qIdx:number, revealed:boolean, createdAt, open:boolean }
-// rooms/{CODE}/players/{uid}: { name, passes, active, joinedAt }
-// rooms/{CODE}/answers/{qIdx_uid}: { qIdx, uid, choice, ts }
+/******************** Cloud (Firestore) model ********************/
 function randomCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
-function roomDoc(){
-  if (!db || !state.cloud.room) { throw new Error('Room/DB not ready'); }
-  return db.collection('rooms').doc(state.cloud.room);
-}
-
+function roomDoc(){ if(!db||!state.cloud.room) throw new Error('Room/DB not ready'); return db.collection('rooms').doc(state.cloud.room); }
 function answersCol(){ return roomDoc().collection('answers'); }
 function playersCol(){ return roomDoc().collection('players'); }
 
-async function createRoom(){
-  if (!firebaseReady || !db) return false;
-  const code = Math.random().toString(36).slice(2,8).toUpperCase();
-  await db.collection('rooms').doc(code).set({
-    qIdx: 0,
-    revealed: false,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    open: true,
-    hostUid: myUid || null
-  });
-  state.cloud.room = code;
-  onRoomChanged();
-  return true;
-}
-
+async function createRoom(){ if(!firebaseReady||!db) return false; const code=randomCode(); await db.collection('rooms').doc(code).set({ qIdx:0, revealed:false, createdAt:firebase.firestore.FieldValue.serverTimestamp(), open:true, hostUid: myUid||null }); state.cloud.room=code; onRoomChanged(); return true; }
 async function closeRoom(){ if(!state.cloud.room) return; await roomDoc().update({ open:false }); unsubscribeCloud(); state.cloud.room=null; onRoomChanged(); }
+async function joinRoom(code,name){ if(!firebaseReady) return alert('Cloud sync is off.'); if(!code) return alert('Enter a room code'); state.cloud.room=code.toUpperCase(); onRoomChanged(); await playersCol().doc(myUid||'anon').set({ name:name||'Player', passes:3, active:true, joinedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true}); }
 
-async function joinRoom(code, name){ if(!firebaseReady) return alert('Cloud sync is off.'); if(!code) return alert('Enter a room code');
-  state.cloud.room = code.toUpperCase(); onRoomChanged();
-  await playersCol().doc(myUid||'anon').set({ name: name||'Player', passes:3, active:true, joinedAt:firebase.firestore.FieldValue.serverTimestamp() }, { merge:true });
-}
-
-function subscribeRoom(){ if(!state.cloud.room||!firebaseReady) return; // room doc
-  if(state.cloud.unsubRoom) state.cloud.unsubRoom();
-  state.cloud.unsubRoom = roomDoc().onSnapshot(snap=>{
-    const r=snap.data(); if(!r) return;
-    const wasIdx = state.idx; state.idx = r.qIdx; state.revealed = r.revealed;
-    // re-render when question or reveal changes
-    if(wasIdx!==state.idx) { showQuestion(); watchCounts(); }
-    if(state.revealed){ revealPaintOnly(); } // paint correctness without allowing next on players
-    renderLadder();
-  });
-  // players roster
-  if(state.cloud.unsubPlayers) state.cloud.unsubPlayers();
-  state.cloud.unsubPlayers = playersCol().onSnapshot(snap=>{
-    state.players = []; snap.forEach(doc=>{ const p=doc.data(); state.players.push({ id:doc.id, name:p.name||'Player', passes:p.passes??3, active:p.active??true }); });
-    renderRoster();
-  });
-  // counts for current q
-  watchCounts();
-}
+function subscribeRoom(){ if(!state.cloud.room||!firebaseReady) return; if(state.cloud.unsubRoom) state.cloud.unsubRoom(); state.cloud.unsubRoom = roomDoc().onSnapshot(s=>{ const r=s.data(); if(!r) return; const was=state.idx; state.idx=r.qIdx; state.revealed=r.revealed; if(was!==state.idx){ showQuestion(); watchCounts(); } if(state.revealed){ revealPaintOnly(); } renderLadder(); }); if(state.cloud.unsubPlayers) state.cloud.unsubPlayers(); state.cloud.unsubPlayers = playersCol().onSnapshot(snap=>{ state.players=[]; snap.forEach(doc=>{ const p=doc.data(); state.players.push({ id:doc.id, name:p.name||'Player', passes:p.passes??3, active:p.active??true }); }); renderRoster(); }); watchCounts(); }
 function unsubscribeCloud(){ if(state.cloud.unsubRoom){ state.cloud.unsubRoom(); state.cloud.unsubRoom=null; } if(state.cloud.unsubCounts){ state.cloud.unsubCounts(); state.cloud.unsubCounts=null; } if(state.cloud.unsubPlayers){ state.cloud.unsubPlayers(); state.cloud.unsubPlayers=null; } }
 
-function watchCounts(){ if(!firebaseReady||!state.cloud.room) return; if(state.cloud.unsubCounts) state.cloud.unsubCounts();
-  state.cloud.unsubCounts = answersCol().where('qIdx','==',state.idx).onSnapshot(snap=>{
-    const counts=[0,0,0,0]; snap.forEach(d=>{ const ch=d.data().choice; if(ch>=0&&ch<4) counts[ch]++; });
-    renderCounts(counts);
-  });
-}
-function renderCounts([A,B,C,D]){
-  const total = Math.max(1, A+B+C+D);
-  countsBox.hidden = false;
-  fa.style.width = (A*100/total)+'%'; fb.style.width = (B*100/total)+'%'; fc.style.width = (C*100/total)+'%'; fd.style.width = (D*100/total)+'%';
-  ca.textContent=A; cb.textContent=B; cc.textContent=C; cd.textContent=D;
-}
+function watchCounts(){ if(!firebaseReady||!state.cloud.room) return; if(state.cloud.unsubCounts) state.cloud.unsubCounts(); state.cloud.unsubCounts = answersCol().where('qIdx','==',state.idx).onSnapshot(snap=>{ const counts=[0,0,0,0]; snap.forEach(d=>{ const ch=d.data().choice; if(ch>=0&&ch<4) counts[ch]++; }); renderCounts(counts); }); }
+function renderCounts([A,B,C,D]){ const total=Math.max(1,A+B+C+D); countsBox.hidden=false; fa.style.width=(A*100/total)+'%'; fb.style.width=(B*100/total)+'%'; fc.style.width=(C*100/total)+'%'; fd.style.width=(D*100/total)+'%'; ca.textContent=A; cb.textContent=B; cc.textContent=C; cd.textContent=D; }
 
 async function hostReveal(){ if(!firebaseReady||!state.cloud.room) return revealLocal(); await roomDoc().update({ revealed:true }); }
-async function hostNext(){ if(!firebaseReady||!state.cloud.room) return nextLocal(); const next = Math.min(state.idx+1, QUESTIONS.length-1); await roomDoc().update({ qIdx: next, revealed:false }); }
+async function hostNext(){ if(!firebaseReady||!state.cloud.room) return nextLocal(); const nxt=Math.min(state.idx+1, QUESTIONS.length-1); await roomDoc().update({ qIdx:nxt, revealed:false }); }
+async function submitAnswer(choice){ if(!firebaseReady||!state.cloud.room||myUid==null) return; const id=`${state.idx}_${myUid}`; await answersCol().doc(id).set({ qIdx:state.idx, uid:myUid, choice, ts:firebase.firestore.FieldValue.serverTimestamp() }); }
+function revealPaintOnly(){ const q=QUESTIONS[state.idx]; [...optsEl.children].forEach(btn=>{ const ix=Number(btn.dataset.idx); btn.disabled=true; if(ix===q.c) btn.classList.add('correct'); if(ix===state.selected && ix!==q.c) btn.classList.add('wrong'); }); noteEl.hidden=false; noteEl.innerHTML=q.note; }
 
-async function submitAnswer(choice){ if(!firebaseReady||!state.cloud.room||myUid==null) return; const id = `${state.idx}_${myUid}`; await answersCol().doc(id).set({ qIdx:state.idx, uid:myUid, choice, ts: firebase.firestore.FieldValue.serverTimestamp() }); }
-
-function revealPaintOnly(){ // Mark correct/wrong based on last local selection if available
-  const q=QUESTIONS[state.idx];
-  [...optsEl.children].forEach(btn=>{
-    const ix=Number(btn.dataset.idx); btn.disabled=true; if(ix===q.c) btn.classList.add('correct');
-    if(ix===state.selected && ix!==q.c) btn.classList.add('wrong');
-  });
-  noteEl.hidden=false; noteEl.innerHTML = q.note;
-}
-
-/******************** Roster (local + cloud) ********************/
+/******************** Roster ********************/
 function loadRosterLocal(){ try{ const raw=localStorage.getItem('msk1pct_roster'); state.players = raw? JSON.parse(raw): []; }catch(e){ state.players=[]; } renderRoster(); }
 function saveRosterLocal(){ localStorage.setItem('msk1pct_roster', JSON.stringify(state.players)); }
 function addNamesLocal(names){ names.split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{ state.players.push({id:crypto.randomUUID(), name:n, passes:3, active:true}); }); saveRosterLocal(); renderRoster(); nameInput.value=''; }
-function renderRoster(){ rosterEl.innerHTML=''; const active=state.players.filter(p=>p.active).length; pCountEl.textContent = state.players.length? `· ${active}/${state.players.length} active` : '';
-  state.players.forEach(p=>{
-    const row=document.createElement('div'); row.className='row'; row.style.margin='6px 0';
-    const left=document.createElement('div'); left.innerHTML = `<b>${escapeHtml(p.name)}</b> <span class="small muted">${p.active?'· In':'· Out'}</span>`;
-    const passes=document.createElement('div'); passes.className='pill'; passes.textContent = `Passes: ${p.passes}`;
-    const passBtn=document.createElement('button'); passBtn.textContent='Pass'; passBtn.onclick=async()=>{
-      if(p.passes>0) p.passes--; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); } else { saveRosterLocal(); } renderRoster(); };
-    const failBtn=document.createElement('button'); failBtn.textContent=p.active?'Fail':'Undo'; failBtn.onclick=async()=>{
-      p.active=!p.active; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ active:p.active },{merge:true}); } else { saveRosterLocal(); } renderRoster(); };
-    row.append(left, passes, passBtn, failBtn); rosterEl.appendChild(row);
-  });
-}
-function clearRoster(){ if(confirm('Clear all players?')){ state.players=[]; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ /* host clearing cloud roster intentionally left manual */ } else { saveRosterLocal(); } renderRoster(); } }
+function renderRoster(){ rosterEl.innerHTML=''; const active=state.players.filter(p=>p.active).length; pCountEl.textContent = state.players.length? `· ${active}/${state.players.length} active` : ''; state.players.forEach(p=>{ const row=document.createElement('div'); row.className='row'; row.style.margin='6px 0'; const left=document.createElement('div'); left.innerHTML=`<b>${escapeHtml(p.name)}</b> <span class="small muted">${p.active?'· In':'· Out'}</span>`; const passes=document.createElement('div'); passes.className='pill'; passes.textContent=`Passes: ${p.passes}`; const passBtn=document.createElement('button'); passBtn.textContent='Pass'; passBtn.onclick=async()=>{ if(p.passes>0) p.passes--; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; const failBtn=document.createElement('button'); failBtn.textContent=p.active?'Fail':'Undo'; failBtn.onclick=async()=>{ p.active=!p.active; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ active:p.active },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; row.append(left,passes,passBtn,failBtn); rosterEl.appendChild(row); }); }
+function clearRoster(){ if(confirm('Clear all players?')){ state.players=[]; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ /* manual cloud clear if desired */ } else { saveRosterLocal(); } renderRoster(); } }
 function giveAllPass(){ state.players.forEach(p=>{ if(p.active) p.passes = Math.max(0, p.passes-1); }); if(state.mode==='host'&&firebaseReady&&state.cloud.room){ state.players.forEach(async p=>{ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); }); } else { saveRosterLocal(); } renderRoster(); }
 function reviveAll(){ state.players.forEach(p=> p.active=true); if(state.mode==='host'&&firebaseReady&&state.cloud.room){ state.players.forEach(async p=>{ await playersCol().doc(p.id).set({ active:true },{merge:true}); }); } else { saveRosterLocal(); } renderRoster(); }
 
@@ -539,74 +374,29 @@ soundChip.onclick = ()=>{ state.sound=!state.sound; soundChip.textContent = stat
 addBtn.onclick = ()=> state.mode==='local'? addNamesLocal(nameInput.value) : alert('In Host mode, roster fills from players joining the room.');
 clearRosterBtn.onclick = clearRoster; allPassBtn.onclick = giveAllPass; reviveBtn.onclick = reviveAll;
 
-createRoomBtn.onclick = async () => {
-  if (!firebaseReady || !db) { alert('Cloud sync is OFF — check FB_CONFIG and authorised domain.'); return; }
-  const ok = await createRoom();            // make createRoom return true/false
-  if (ok) { subscribeRoom(); paintRoomUi(); }
-};
+createRoomBtn.onclick = async()=>{ if(!firebaseReady||!db){ alert('Cloud sync is OFF — check FB_CONFIG and authorised domain.'); return; } const ok=await createRoom(); if(ok){ subscribeRoom(); paintRoomUi(); } };
+closeRoomBtn.onclick = async()=>{ if(!firebaseReady||!db||!state.cloud.room) return; await closeRoom(); paintRoomUi(); };
+copyLinkBtn.onclick = ()=>{ shareLinkEl.select(); document.execCommand('copy'); setStatus('Link copied to clipboard.'); };
+joinBtn.onclick = async()=>{ if(!firebaseReady||!db){ alert('Cloud sync is OFF'); return; } await joinRoom(joinCode.value, playerName.value||'Player'); subscribeRoom(); paintRoomUi(); };
 
-closeRoomBtn.onclick = async () => {
-  if (!firebaseReady || !db || !state.cloud.room) return;
-  await closeRoom(); paintRoomUi();
-};
+// Keyboard
+window.addEventListener('keydown', (e)=>{ if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return; const k=e.key.toLowerCase(); if(k==='a') select(0); else if(k==='b') select(1); else if(k==='c') select(2); else if(k==='d') select(3); else if(k==='r') (state.mode==='host'? hostReveal(): revealLocal()); else if(k==='n') (state.mode==='host'? hostNext(): nextLocal()); else if(k==='s') (state.mode==='local'? startLocal(): null); });
 
-copyLinkBtn.onclick = () => {
-  shareLinkEl.select();
-  document.execCommand('copy');
-  setStatus('Link copied to clipboard.');
-};
-
-joinBtn.onclick = async()=>{ await joinRoom(joinCode.value, playerName.value||'Player'); subscribeRoom(); paintRoomUi(); };
-
-// Keyboard shortcuts
-window.addEventListener('keydown', (e)=>{
-  if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
-  const k=e.key.toLowerCase();
-  if(k==='a') select(0);
-  else if(k==='b') select(1);
-  else if(k==='c') select(2);
-  else if(k==='d') select(3);
-  else if(k==='r') (state.mode==='host'? hostReveal(): revealLocal());
-  else if(k==='n') (state.mode==='host'? hostNext(): nextLocal());
-  else if(k==='s') (state.mode==='local'? startLocal(): null);
-});
-
-// Tabs switching
+// Tabs
 function setActiveTab(which){ [tabLocal,tabHost,tabPlayer].forEach(b=>b.classList.remove('active')); if(which==='local') tabLocal.classList.add('active'); if(which==='host') tabHost.classList.add('active'); if(which==='player') tabPlayer.classList.add('active'); }
-function switchMode(which){ state.mode=which; setActiveTab(which); setRoleBadge();
-  hostPanel.hidden = which!=='host'; playerPanel.hidden = which!=='player'; mpanel.style.display = (which==='local')? 'none':'grid';
-  // Buttons availability
-  startBtn.disabled = (which!=='local'); revealBtn.disabled=(which==='player'); nextBtn.disabled=(which!=='local'); lockBtn.disabled=true;
-  // Roster source
-  if(which==='local'){ loadRosterLocal(); } else { state.players=[]; renderRoster(); }
-  showQuestion(); paintRoomUi(); }
-
+function switchMode(which){ state.mode=which; setActiveTab(which); setRoleBadge(); hostPanel.hidden = which!=='host'; playerPanel.hidden = which!=='player'; mpanel.style.display = (which==='local')? 'none':'grid'; if(which==='local'){ loadRosterLocal(); } else { state.players=[]; renderRoster(); } showQuestion(); paintRoomUi(); }
 [tabLocal,tabHost,tabPlayer].forEach(b=> b.onclick = ()=> switchMode(b.id==='tabLocal'?'local':(b.id==='tabHost'?'host':'player')));
 
 /******************** Paint cloud UI ********************/
 function onRoomChanged(){ paintRoomUi(); if(state.cloud.room){ subscribeRoom(); } }
-function paintRoomUi(){ setCloudChip(); const hasRoom = !!state.cloud.room; roomBadge.hidden = !hasRoom; roomBadge.textContent = 'Room: '+(state.cloud.room||'—');
-  if(state.mode==='host'){
-    closeRoomBtn.disabled = !hasRoom; createRoomBtn.disabled = !firebaseReady || hasRoom;
-    roomInfo.hidden = !hasRoom; countsBox.hidden = !hasRoom; hostHint.hidden = hasRoom;
-    if(hasRoom){ const url = new URL(window.location.href); url.searchParams.set('room', state.cloud.room); shareLinkEl.value = url.toString(); roomCodeEl.textContent = state.cloud.room; }
-    // Host can drive start/reveal/next only when room exists
-    startBtn.disabled=false; revealBtn.disabled=false; nextBtn.disabled=false;
-  } else if(state.mode==='player'){
-    joinBtn.disabled = !firebaseReady; playerHint.textContent = firebaseReady? 'Enter code + name, then join.' : 'Cloud is Off — add Firebase config in the file to enable joining rooms.';
-    // players do not control these buttons
-    startBtn.disabled=true; revealBtn.disabled=true; nextBtn.disabled=true;
-  } else { // local
-    roomInfo.hidden = true; countsBox.hidden = true; roomBadge.hidden = true;
-  }
+function paintRoomUi(){ setCloudChip(); const hasRoom=!!state.cloud.room; roomBadge.hidden=!hasRoom; roomBadge.textContent='Room: '+(state.cloud.room||'—'); if(state.mode==='host'){ closeRoomBtn.disabled=!hasRoom; createRoomBtn.disabled=!firebaseReady || hasRoom; roomInfo.hidden=!hasRoom; countsBox.hidden=!hasRoom; hostHint.hidden=hasRoom; // host controls only when a room exists
+    startBtn.disabled=!hasRoom; revealBtn.disabled=!hasRoom; nextBtn.disabled=!hasRoom; }
+  else if(state.mode==='player'){ joinBtn.disabled=!firebaseReady; playerHint.textContent = firebaseReady? 'Enter code + name, then join.' : 'Cloud is Off — add Firebase config in the file to enable joining rooms.'; startBtn.disabled=true; revealBtn.disabled=true; nextBtn.disabled=true; }
+  else { roomInfo.hidden=true; countsBox.hidden=true; roomBadge.hidden=true; startBtn.disabled=false; revealBtn.disabled=true; nextBtn.disabled=true; }
 }
 
 /******************** Init ********************/
-function init(){ setCloudChip(); setRoleBadge(); buildEmptyLadder(); resetLocal();
-  // Auto-join if ?room=CODE is present and we are in Player tab
-  const params = new URLSearchParams(location.search); const pre = (params.get('room')||'').toUpperCase();
-  if(pre){ switchMode('player'); joinCode.value = pre; }
-}
+function init(){ setCloudChip(); setRoleBadge(); buildEmptyLadder(); resetLocal(); const params=new URLSearchParams(location.search); const pre=(params.get('room')||'').toUpperCase(); if(pre){ switchMode('player'); joinCode.value=pre; } }
 init();
 </script>
 </body>
