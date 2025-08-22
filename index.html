@@ -219,7 +219,37 @@ const FB_CONFIG = {
     appId: "1:87140817040:web:5ff5bae0a42c999097a015",
     measurementId: "G-G7FMP4XBFN"
   };
+// Accept either FB_CONFIG or firebaseConfig to be forgiving
+const _CFG = window.FB_CONFIG || window.firebaseConfig;
 
+let firebaseReady = false, db = null, myUid = null;
+
+(function safeInitFirebase(){
+  try {
+    if (!_CFG || !_CFG.apiKey) throw new Error('Missing Firebase config');
+
+    // Idempotent init (won't throw if already initialised)
+    if (!firebase.apps.length) {
+      firebase.initializeApp(_CFG);
+    }
+
+    db = firebase.firestore();
+
+    // Anonymous auth (non-blocking)
+    firebase.auth().signInAnonymously().catch(console.warn);
+    firebase.auth().onAuthStateChanged(u => { myUid = u ? u.uid : null; });
+
+    firebaseReady = true;
+    // (Optional) if you have a chip element:
+    const cloudChip = document.getElementById('cloudChip');
+    if (cloudChip) cloudChip.textContent = '☁️ Cloud: On';
+  } catch (e) {
+    console.error('Firebase init failed:', e);
+    firebaseReady = false;
+    const cloudChip = document.getElementById('cloudChip');
+    if (cloudChip) cloudChip.textContent = '☁️ Cloud: Off';
+  }
+})();
 let firebaseReady = false, db = null, myUid = null;
 (function initFirebase(){
     try {
