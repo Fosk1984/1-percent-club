@@ -220,10 +220,6 @@ const FB_CONFIG = {
     measurementId: "G-G7FMP4XBFN"
   };
 
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-};
 let firebaseReady = false, db = null, myUid = null;
 (function initFirebase(){
     try {
