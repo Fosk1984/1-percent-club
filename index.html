@@ -3,437 +3,555 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>The 1% Club — Clinical MSK Edition (Multiplayer)</title>
-  <meta name="description" content="Multiplayer 1% Club style quiz for clinical MSK (non‑ultrasound). Single‑file GitHub Pages app with optional Firebase sync." />
+  <title>1% Club — Multiplayer (Firebase)</title>
+  <meta name="description" content="Host-controlled 1% Club style quiz with up to 80 players. Built for GitHub Pages + Firebase Realtime Database.">
   <link rel="icon" href="data:,"><!-- silence favicon 404 on GitHub Pages -->
   <style>
-    :root{ --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf; --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b; --edge:#26315a; --glow:0 10px 40px rgba(106,194,255,.25); }
+    :root{
+      --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf; --edge:#22315c;
+      --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b;
+    }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:var(--ink);
-      background: radial-gradient(1200px 800px at 20% -10%, #142043 0%, #0f1730 40%, var(--bg) 100%) fixed; line-height:1.35; }
-    .wrap{display:grid; grid-template-rows:auto 1fr; min-height:100vh}
-    header{ display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--edge); background:rgba(18,23,42,.6); backdrop-filter: blur(8px); }
-    h1{margin:0; font-size:clamp(18px, 2.2vw, 28px); letter-spacing:.3px}
-    .controls{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
-    .roleTabs{display:flex; gap:6px; background:#0e1430; border:1px solid var(--edge); border-radius:12px; padding:4px}
-    .roleTabs button{appearance:none; border:none; background:transparent; color:var(--ink); padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700}
-    .roleTabs button.active{background:#0b132d; outline:2px solid rgba(106,194,255,.25)}
-    button, .chip{ appearance:none; border:1px solid var(--edge); background:#0e1430; color:var(--ink); padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:600; box-shadow:var(--glow); transition: transform .06s ease, background .2s ease, border-color .2s ease; }
-    button:hover{transform:translateY(-1px); border-color:var(--acc)}
-    button:disabled{opacity:.5; cursor:not-allowed}
-    .chip{font-size:13px; user-select:none}
-
-    .main{display:grid; grid-template-columns:280px 1fr 340px; gap:16px; padding:16px}
-    @media (max-width:1100px){ .main{grid-template-columns:1fr; grid-auto-rows:min-content} }
-
-    .card{ background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.0)); border:1px solid var(--edge); border-radius:18px; padding:16px; box-shadow:var(--glow) }
-    .titleRow{display:flex; align-items:center; justify-content:space-between; gap:10px}
-    .ladder{display:flex; flex-direction:column; gap:8px}
-    .ladder .step{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-radius:12px; border:1px solid var(--edge); background:#0e1430}
-    .ladder .step.current{border-color:var(--acc); outline:2px solid rgba(106,194,255,.25)}
-    .ladder .step.done{opacity:.75}
-    .pct{font-weight:800}
-
-    .qbox{display:flex; flex-direction:column; gap:14px}
-    .qtext{font-size:clamp(18px, 2.1vw, 24px)}
-    .opts{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    @media (max-width:600px){ .opts{grid-template-columns:1fr} }
-
-    .opt{display:flex; align-items:center; gap:10px; padding:14px; border-radius:14px; border:1px solid var(--edge); background:#0b132d; text-align:left; font-weight:600}
-    .opt .k{width:28px; height:28px; display:inline-grid; place-items:center; border-radius:8px; background:#0a1027; border:1px solid var(--edge); font-weight:800}
-    .opt.selected{border-color:var(--acc); outline:2px solid rgba(106,194,255,.25)}
-    .opt.correct{border-color:var(--ok); background:rgba(51,209,122,.08)}
-    .opt.wrong{border-color:var(--bad); background:rgba(255,107,107,.08)}
-
-    .hostRow{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
-    .note{font-size:15px; color:var(--muted); border-top:1px dashed var(--edge); padding-top:10px}
-
-    .roster h3{margin:0 0 8px 0}
-    .row{display:grid; grid-template-columns:1fr auto auto auto; gap:8px; align-items:center}
-    .pill{padding:6px 10px; border:1px solid var(--edge); border-radius:999px; font-weight:700; font-size:12px}
-    .pill.ok{border-color:var(--ok)}
-    .pill.bad{border-color:var(--bad)}
-    .small{font-size:12px; color:var(--muted)}
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--ink); background:radial-gradient(1200px 800px at 15% -10%, #182449 0%, #0f1730 40%, var(--bg) 100%);
+    }
+    .shell{max-width:1100px; margin:0 auto; padding:24px}
+    h1{margin:0 0 12px; font-size:clamp(22px,3.2vw,36px)}
+    h2{margin:18px 0 8px; font-size:clamp(18px,2.2vw,24px)}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.08)); border:1px solid var(--edge);
+      box-shadow:0 10px 30px rgba(0,0,0,.35); border-radius:16px; padding:16px; margin:12px 0}
+    .grid{display:grid; gap:12px}
+    .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    label{font-size:14px; color:var(--muted)}
+    input, textarea, select{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--edge);
+      background:#0f1530; color:var(--ink)}
+    textarea{min-height:100px; resize:vertical}
+    button{cursor:pointer; border:1px solid var(--edge); background:linear-gradient(180deg,#1a254d,#121a38);
+      color:var(--ink); padding:10px 14px; border-radius:12px; font-weight:600; box-shadow:0 6px 16px rgba(0,0,0,.35)}
+    button[disabled]{opacity:.5; cursor:not-allowed}
+    .btn-acc{background:linear-gradient(180deg,#3aa7ff,#2263a2)}
+    .btn-acc2{background:linear-gradient(180deg,#ffd36a,#c49e2e); color:#1a1400}
+    .btn-ok{background:linear-gradient(180deg,#33d17a,#1a7a49)}
+    .btn-bad{background:linear-gradient(180deg,#ff6b6b,#b13a3a)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .hint{color:var(--muted); font-size:13px}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+      background:#0d1430; border:1px solid var(--edge); font-size:13px}
+    .timer{font-variant-numeric:tabular-nums; font-size:22px}
+    .answers{display:grid; gap:10px; grid-template-columns:1fr}
+    .answerBtn{padding:16px; text-align:left; border-radius:14px; border:1px solid var(--edge); background:#101a3a;
+      font-size:16px}
+    .answerBtn.selected{outline:2px solid var(--acc)}
+    .answerBtn.correct{outline:2px solid var(--ok)}
+    .answerBtn.wrong{outline:2px solid var(--bad)}
     .muted{color:var(--muted)}
-    .spacer{flex:1}
-    .kb{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; background:#0c1330; border:1px solid var(--edge); padding:2px 6px; border-radius:8px}
-    .hint{font-size:12px; color:#b3bedb}
-
-    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    @media (max-width:700px){ .grid2{grid-template-columns:1fr} }
-
-    .hist{display:grid; grid-template-columns:1fr; gap:6px; margin-top:8px}
-    .bar{display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center}
-    .bar .track{height:10px; border-radius:999px; background:#0a1027; border:1px solid var(--edge); overflow:hidden}
-    .bar .fill{height:100%; background:linear-gradient(90deg, var(--acc), #7ad1ff)}
-
-    .statusStrip{display:flex; gap:8px; align-items:center}
-    .ghost{opacity:.6}
-    .linkBox{display:flex; gap:8px; align-items:center}
-    input[type="text"], input[type="search"]{padding:10px;border-radius:10px;border:1px solid var(--edge);background:#0e1430;color:var(--ink)}
+    .small{font-size:12px}
+    .list{max-height:260px; overflow:auto; padding-right:6px}
+    .tag{padding:.2rem .45rem; border-radius:8px; border:1px solid var(--edge); background:#0c1230; font-size:12px}
+    .center{display:flex; align-items:center; justify-content:center}
+    .big{font-size:clamp(28px,4vw,44px); font-weight:700}
+    .hide{display:none !important}
   </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>🧠 The 1% Club — Clinical MSK Edition <span class="small muted">(multiplayer · no ultrasound)</span></h1>
-    <div class="controls">
-      <div class="roleTabs" role="tablist" aria-label="Mode">
-        <button id="tabLocal" class="active" role="tab" aria-selected="true">Local</button>
-        <button id="tabHost" role="tab" aria-selected="false">Host</button>
-        <button id="tabPlayer" role="tab" aria-selected="false">Player</button>
+  <div class="shell">
+    <h1>🧠 The 1% Club — Multiplayer</h1>
+    <div id="landing" class="card">
+      <div class="row">
+        <label class="pill"><input type="checkbox" id="isHostToggle"> &nbsp; I'm the host</label>
+        <span class="hint">GitHub Pages + Firebase (Anonymous sign-in). Room code sharing built-in.</span>
       </div>
-      <span class="chip" id="cloudChip">☁️ Cloud: Off</span>
-      <span class="chip" id="soundChip">🔈 Sound: Off</span>
-      <span class="chip" id="scoreChip">Auto‑Score: On</span>
+      <div id="hostLanding" class="grid g2" style="margin-top:8px;">
+        <div class="card">
+          <h2>Host: create a room</h2>
+          <div class="grid g2">
+            <div>
+              <label>Room code (optional)</label>
+              <input id="hostRoomCode" maxlength="6" placeholder="e.g. 7H2K9Q" />
+            </div>
+            <div>
+              <label>Player limit</label>
+              <input id="playerLimit" type="number" min="2" max="80" value="80" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="createRoomBtn" class="btn-acc">Create room</button>
+            <span class="hint">You’ll join as host (not a contestant).</span>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Players: join a room</h2>
+          <div class="grid g2">
+            <div>
+              <label>Room code</label>
+              <input id="joinCode" maxlength="6" placeholder="Enter code" />
+            </div>
+            <div>
+              <label>Your display name</label>
+              <input id="displayName" maxlength="24" placeholder="e.g. Alex" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="joinBtn" class="btn-ok">Join game</button>
+            <span class="hint">Up to 80 players. Eliminated on wrong answer.</span>
+          </div>
+        </div>
+      </div>
     </div>
-  </header>
 
-  <main class="main">
-    <!-- Ladder -->
-    <section class="card">
-      <div class="titleRow"><h2 style="margin:0">Question Ladder</h2><span class="small">Higher = easier</span></div>
-      <div id="ladder" class="ladder" aria-live="polite"></div>
-    </section>
+    <div id="hostUI" class="card hide">
+      <div class="row">
+        <div class="pill">Room: <span id="roomCodeHost" class="mono"></span></div>
+        <div class="pill">Players alive: <span id="aliveCount">0</span></div>
+        <div class="pill">Question #<span id="qNumber">0</span></div>
+        <button id="copyInvite" class="">Copy invite</button>
+      </div>
 
-    <!-- Question card -->
-    <section class="card">
-      <div class="qbox">
-        <div class="statusStrip">
-          <div id="qPct" class="pill ok">—%</div>
-          <div id="roomBadge" class="pill ghost" hidden>Room: —</div>
-          <div id="roleBadge" class="pill ghost">Local</div>
-        </div>
-        <div id="qText" class="qtext" style="margin-top:8px">Choose a mode above. In <b>Local</b>, press <b>Start Game</b>.
-          In <b>Host</b>/<b>Player</b>, connect with a room code.</div>
-        <div id="opts" class="opts" aria-label="Answer options"></div>
-
-        <!-- Local/Host controls under the question -->
-        <div class="hostRow">
-          <button id="startBtn">Start Game</button>
-          <button id="lockBtn" disabled>Lock In</button>
-          <button id="revealBtn" disabled>Reveal Answer <span class="kb">R</span></button>
-          <button id="nextBtn" disabled>Next <span class="kb">N</span></button>
-          <span class="muted">Shortcuts: <span class="kb">A–D</span> select, <span class="kb">R</span> reveal, <span class="kb">N</span> next</span>
-          <span class="spacer"></span>
-          <span id="status" class="small"></span>
-        </div>
-        <div id="note" class="note" hidden></div>
-
-        <!-- Multiplayer join/create UI -->
-        <div class="grid2" style="margin-top:14px" id="mpanel">
-          <!-- Host panel -->
-          <div id="hostPanel" hidden>
-            <div class="titleRow"><h3 style="margin:0">Host Controls</h3></div>
-            <div class="row" style="grid-template-columns:1fr auto auto; margin-top:8px">
-              <input id="hostNameInput" placeholder="(Optional) Host display name" />
-              <button id="createRoomBtn">Create Room</button>
-              <button id="closeRoomBtn" disabled>Close Room</button>
-            </div>
-            <div id="roomInfo" class="linkBox" style="margin-top:8px" hidden>
-              <span class="pill ok" id="roomCode">CODE</span>
-              <input id="shareLink" type="text" readonly />
-              <button id="copyLinkBtn">Copy Link</button>
-            </div>
-            <div id="counts" class="hist" style="margin-top:10px" hidden>
-              <div class="bar"><span class="pill">A</span><div class="track"><div class="fill" id="fa" style="width:0%"></div></div><span id="ca" class="small">0</span></div>
-              <div class="bar"><span class="pill">B</span><div class="track"><div class="fill" id="fb" style="width:0%"></div></div><span id="cb" class="small">0</span></div>
-              <div class="bar"><span class="pill">C</span><div class="track"><div class="fill" id="fc" style="width:0%"></div></div><span id="cc" class="small">0</span></div>
-              <div class="bar"><span class="pill">D</span><div class="track"><div class="fill" id="fd" style="width:0%"></div></div><span id="cd" class="small">0</span></div>
-            </div>
-            <p class="hint" id="hostHint">Create a room, then share the link/code. Players join and you control Reveal/Next. Live answer counts will appear here.</p>
+      <div class="grid g2" style="margin-top:10px">
+        <div class="card">
+          <h2>Question builder</h2>
+          <label>Question prompt</label>
+          <textarea id="qPrompt" placeholder="e.g. What is 15% of 220?"></textarea>
+          <div class="grid g2">
+            <div><label>A</label><input id="opt0" placeholder="e.g. 33"/></div>
+            <div><label>B</label><input id="opt1" placeholder="e.g. 30"/></div>
+            <div><label>C</label><input id="opt2" placeholder="e.g. 22"/></div>
+            <div><label>D</label><input id="opt3" placeholder="e.g. 28"/></div>
           </div>
-
-          <!-- Player panel -->
-          <div id="playerPanel" hidden>
-            <div class="titleRow"><h3 style="margin:0">Join a Room</h3></div>
-            <div class="row" style="grid-template-columns:1fr 1fr auto; margin-top:8px">
-              <input id="playerName" placeholder="Your name" />
-              <input id="joinCode" placeholder="Room code" />
-              <button id="joinBtn">Join</button>
-            </div>
-            <p class="hint" id="playerHint">After joining, select your answer on each question. You can change it until the host reveals.</p>
+          <div class="row" style="margin-top:10px">
+            <label>Correct answer</label>
+            <select id="correctIndex">
+              <option value="0">A</option>
+              <option value="1">B</option>
+              <option value="2">C</option>
+              <option value="3">D</option>
+            </select>
+            <label>Answer window</label>
+            <select id="answerWindow">
+              <option value="30">30 seconds</option>
+              <option value="20">20 seconds</option>
+              <option value="15">15 seconds</option>
+              <option value="10">10 seconds</option>
+            </select>
           </div>
+          <div class="row" style="margin-top:10px">
+            <button id="stageHiddenBtn">1) Arm question (hidden)</button>
+            <button id="revealBtn" class="btn-acc">2) Reveal to players & start timer</button>
+            <button id="lockBtn" class="btn-bad">3) Lock answers now</button>
+            <button id="scoreBtn" class="btn-ok">4) Reveal correct & eliminate</button>
+            <button id="nextBtn" class="btn-acc2">Next question</button>
+          </div>
+          <div class="hint">Flow: Arm → Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
+        </div>
+        <div class="card">
+          <h2>Players</h2>
+          <div id="playersList" class="list"></div>
         </div>
       </div>
-    </section>
 
-    <!-- Roster / Host tools -->
-    <aside class="card roster">
-      <div class="titleRow"><h3>Players <span id="pCount" class="small muted"></span></h3>
-        <button id="clearRosterBtn">Clear</button></div>
-      <div class="row" style="margin:8px 0 12px 0">
-        <input id="nameInput" placeholder="Add names (comma‑separated)…" aria-label="Add players">
-        <button id="addBtn">Add</button>
-        <button id="allPassBtn">Give Everyone a Pass</button>
-        <button id="reviveBtn">Revive All</button>
+      <div class="card">
+        <h2>Live question</h2>
+        <div class="row">
+          <div class="pill">Phase: <span id="phaseTxt">—</span></div>
+          <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
+        </div>
+        <div id="livePrompt" class="big" style="margin-top:8px">—</div>
+        <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
       </div>
-      <div id="roster"></div>
-      <p class="small muted" style="margin-top:10px">Local mode: roster is saved in your browser.<br>Cloud mode: roster syncs to the room.</p>
-    </aside>
-  </main>
-</div>
+    </div>
 
-<!-- Firebase compat SDKs (load BEFORE game script) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
-<script>
-'use strict';
+    <div id="playerUI" class="card hide">
+      <div class="row">
+        <div class="pill">Room: <span id="roomCodePlayer" class="mono"></span></div>
+        <div class="pill">Name: <span id="meName" class="mono"></span></div>
+        <div class="pill">Status: <span id="statusTxt">Waiting…</span></div>
+        <div class="pill">Time left: <span id="timeLeft" class="timer">—</span></div>
+      </div>
+      <div id="msg" class="muted" style="margin-top:6px">Waiting for host…</div>
+      <div id="qArea" class="hide">
+        <div id="pPrompt" class="big" style="margin:10px 0">—</div>
+        <div class="answers" id="answerBtns"></div>
+      </div>
+      <div id="eliminated" class="hide center" style="height:160px"><div class="big">❌ You’ve been eliminated</div></div>
+    </div>
 
-/******************** Firebase bootstrap (compat) ********************/
-// Paste YOUR Firebase config here
-window.FB_CONFIG = {
-  apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
-  authDomain: "percent-club-76c05.firebaseapp.com",
-  projectId: "percent-club-76c05",
-  storageBucket: "percent-club-76c05.appspot.com",
-  messagingSenderId: "87140817040",
-  appId: "1:87140817040:web:5ff5bae0a42c999097a015",
-  measurementId: "G-G7FMP4XBFN"
-};
-
-// Globals (defined once)
-if (typeof window.firebaseReady === 'undefined') window.firebaseReady = false;
-if (typeof window.db === 'undefined') window.db = null;
-if (typeof window.myUid === 'undefined') window.myUid = null;
-
-(function safeInitFirebase(){
-  try {
-    const cfg = window.FB_CONFIG || window.firebaseConfig; // accept either name
-    if (!cfg || !cfg.apiKey) throw new Error('Missing Firebase config');
-    if (!firebase.apps.length) firebase.initializeApp(cfg); // compat init
-    window.db = firebase.firestore();
-    firebase.auth().signInAnonymously().catch(console.warn);
-    firebase.auth().onAuthStateChanged(u => { window.myUid = u ? u.uid : null; });
-    window.firebaseReady = true;
-    const chip=document.getElementById('cloudChip'); if(chip) chip.textContent='☁️ Cloud: On';
-  } catch (e) {
-    console.error('Firebase init failed:', e);
-    window.firebaseReady = false;
-    const chip=document.getElementById('cloudChip'); if(chip) chip.textContent='☁️ Cloud: Off';
+    <div class="card" id="howto">
+      <h2>Setup (one-time)</h2>
+      <ol>
+        <li>Create a Firebase project → enable <b>Anonymous Auth</b> and create a <b>Realtime Database</b> (locked mode).</li>
+        <li>Copy your Firebase <b>web config</b> and paste into <span class="mono">FIREBASE_CONFIG</span> below in the code.</li>
+        <li>Paste these <b>Rules</b> into Realtime Database → Rules tab (you can tighten later):<br>
+<pre class="small" style="white-space:pre-wrap; background:#0c1230; padding:10px; border-radius:12px; border:1px solid var(--edge)">{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      "$code": {
+        ".read": "auth != null && (root.child('rooms/'+$code+'/players/'+auth.uid+'/present').val() == true || root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid)",
+        "meta": {
+          ".write": "auth != null && (!data.exists() || root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid)"
+        },
+        "current": {
+          ".read": "auth != null",
+          ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid"
+        },
+        "players": {
+          "$uid": {
+            ".read": "auth != null",
+            ".write": "auth != null && $uid == auth.uid",
+            "eliminated": { ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid" }
+          }
+        },
+        "answers": {
+          "$qid": {
+            "$uid": {
+              ".write": "auth != null && auth.uid == $uid && now <= root.child('rooms/'+$code+'/current/deadline').val() && $qid == root.child('rooms/'+$code+'/current/qid').val() && !data.exists()",
+              ".read": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid"
+            }
+          }
+        }
+      }
+    }
   }
-})();
-
-// Ensure we have an anonymous UID before writes
-async function ensureAuth(){
-  try{ if(myUid) return myUid; await firebase.auth().signInAnonymously(); }catch(e){}
-  return new Promise((resolve)=>{ const off=firebase.auth().onAuthStateChanged(u=>{ if(u){ myUid=u.uid; off(); resolve(myUid); } }); });
 }
+</pre>
+        </li>
+        <li>Commit this single <b>index.html</b> file to a GitHub repo → enable GitHub Pages (main branch /root).</li>
+      </ol>
+    </div>
+  </div>
 
-/******************** Data (questions) ********************/
-const QUESTIONS = [
-  {pct:90, q:'A 22-year-old twists an ankle. Which structure is injured in a <b>sprain</b>?', a:['Muscle belly','Tendon midsubstance','Ligament','Muscle–tendon junction'], c:2, note:'Sprain = ligament; strain = muscle/tendon unit.'},
-  {pct:85, q:'Ottawa Ankle Rules: Which scenario <b>requires</b> an ankle X-ray?', a:['Lateral ankle pain; tender over ATFL; walks 4 steps unaided','Medial ankle pain; <b>posterior</b> edge tenderness at medial malleolus; can’t take 4 steps','Dorsal midfoot pain; base of 5th met tenderness; walks 4 steps','Lateral ankle pain; swelling only; wants reassurance'], c:1, note:'Pain in malleolar zone + posterior edge/tip malleolar tenderness or inability to bear weight → X‑ray.'},
-  {pct:80, q:'Ottawa Knee Rules: Which <b>single</b> finding mandates knee X-ray?', a:['Age 48 with diffuse tenderness, walks 4 steps','Unable to flex to 90° after a fall','Mild swelling after a 10 km run','Patellar tendon tenderness but full function'], c:1, note:'Any inability to flex to 90°, age ≥55, isolated patellar tenderness, head of fibula tenderness, or inability to weight-bear → X‑ray.'},
-  {pct:70, q:'Acute nonspecific low back pain (no red flags). Best initial management?', a:['Two days bed rest','Keep active with simple analgesia ± NSAIDs','Immediate MRI','Opioids first-line for 72 h'], c:1, note:'Stay active; simple analgesia/NSAIDs; avoid bed rest and routine imaging without red flags.'},
-  {pct:60, q:'Early ACL injury: which exam is <b>most sensitive</b>?', a:['Anterior drawer','Pivot–shift','Lachman test','Apley’s test'], c:2, note:'Lachman is most sensitive early for ACL insufficiency.'},
-  {pct:50, q:'Adhesive capsulitis: which movement is <b>most limited</b> (passive and active)?', a:['Internal rotation','External rotation','Abduction','Flexion'], c:1, note:'Frozen shoulder typically shows marked loss of external rotation; passive = active restriction.'},
-  {pct:40, q:'Suspected Achilles rupture: which finding most strongly supports the diagnosis?', a:['Pain on heel raise but normal push-off','Positive Thompson/Simmonds test','Diffuse calf tenderness only','Pain improves with walking'], c:1, note:'Absent plantarflexion on calf squeeze strongly suggests rupture.'},
-  {pct:30, q:'Which cluster most strongly suggests <b>cauda equina syndrome</b>?', a:['Severe unilateral sciatica, positive SLR','Urinary <b>retention</b>, saddle anaesthesia, bilateral leg weakness','Night pain relieved by movement','Reduced ankle reflex on one side only'], c:1, note:'Urinary retention + saddle anaesthesia + bilateral neuro signs = red flag for CES.'},
-  {pct:25, q:'Wrist/hand paraesthesia: which feature points to <b>carpal tunnel</b> rather than C6 radiculopathy?', a:['Neck pain radiating to thumb','Weak wrist extension','Nocturnal symptoms in digits 1–3 eased by “flicking” the hand','Diminished biceps reflex'], c:2, note:'Nocturnal paresthesia in digits 1–3 with a “flick sign” favors CTS; C6 radic often has neck pain, biceps reflex changes, wrist‑extensor weakness.'},
-  {pct:20, q:'An overweight 13‑year‑old presents with knee pain, limp, and markedly reduced <b>hip internal rotation</b>. Most likely diagnosis?', a:['Osgood–Schlatter disease','Slipped capital femoral epiphysis (SCFE)','Patellofemoral pain syndrome','Quadriceps strain'], c:1, note:'SCFE often refers pain to the knee; limited hip internal rotation is classic.'},
-  {pct:15, q:'Medial tibial pain in a runner: which finding best differentiates <b>tibial stress fracture</b> from medial tibial stress syndrome?', a:['Pain only at the start of runs','Diffuse tenderness over >5 cm of tibia','<b>Focal</b> bony tenderness over <5 cm and pain on hop test','Relief with arch supports'], c:2, note:'Focal bony tenderness (<5 cm) and painful hop test → stress fracture; MTSS is diffuse (>5 cm).'},
-  {pct:10, q:'CRPS (Budapest criteria). Which is <b>least</b> characteristic?', a:['Allodynia/hyperalgesia','Temperature or colour asymmetry','Joint effusion with purulent aspirate','Edema/sudomotor changes and trophic change'], c:2, note:'Purulent joint effusion suggests septic arthritis, not CRPS.'},
-  {pct:5, q:'Post‑reduction anterior shoulder dislocation: numb “regimental badge” area and weak shoulder abduction. Most likely nerve injury?', a:['Musculocutaneous','Axillary','Radial','Suprascapular'], c:1, note:'Axillary nerve → deltoid weakness + “regimental badge” numbness.'},
-  {pct:3, q:'Thumb injury after ski fall: marked valgus laxity at MCP and a <b>palpable tender lump proximally</b> at the ulnar side. Best interpretation?', a:['Simple UCL sprain—thumb spica only','Volar plate sprain—buddy tape','Stener lesion—surgical referral indicated','First CMC OA flare—NSAIDs and activity mod'], c:2, note:'Stener lesion: UCL torn with adductor aponeurosis interposition → palpable lump; needs surgery.'},
-  {pct:1, q:'Elbow trauma in a child with supracondylar fracture features. They “can’t make the OK sign” (weak thumb IP and index DIP flexion) but wrist extension is fine. Which nerve is most likely affected?', a:['Radial nerve','Posterior interosseous nerve','Anterior interosseous branch of median nerve','Ulnar nerve'], c:2, note:'AIN palsy (median branch): FPL + FDP (index) weakness → “OK sign” deficit; radial/PIN spare wrist extension.'}
-];
+  <!-- 🔧 Replace FIREBASE_CONFIG below with your actual Firebase web config -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
+    import { getAuth, onAuthStateChanged, signInAnonymously, updateProfile } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
+    import { getDatabase, ref, child, get, set, update, onValue, onChildAdded, onChildRemoved, runTransaction, onDisconnect } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
 
-/******************** State ********************/
-const state = { mode:'local', idx:-1, selected:null, revealed:false, sound:false, autoScore: JSON.parse(localStorage.getItem('msk1pct_autoScore')||'true'), players:[], cloud:{ room:null, unsubRoom:null, unsubCounts:null, unsubPlayers:null, answers:{} } };
+    // 👉 Paste your Firebase project config here
+    const FIREBASE_CONFIG = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "",
+      appId: ""
+    };
 
-/******************** Elements ********************/
-const ladderEl = document.getElementById('ladder');
-const qTextEl = document.getElementById('qText');
-const qPctEl  = document.getElementById('qPct');
-const optsEl  = document.getElementById('opts');
-const noteEl  = document.getElementById('note');
-const statusEl= document.getElementById('status');
-const roomBadge=document.getElementById('roomBadge');
-const roleBadge=document.getElementById('roleBadge');
+    // --- App state ---
+    const app = initializeApp(FIREBASE_CONFIG);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
 
-const startBtn= document.getElementById('startBtn');
-const revealBtn=document.getElementById('revealBtn');
-const nextBtn = document.getElementById('nextBtn');
-const lockBtn = document.getElementById('lockBtn');
-const soundChip=document.getElementById('soundChip');
-const cloudChip=document.getElementById('cloudChip');
-const scoreChip=document.getElementById('scoreChip');
+    const els = (q)=>document.querySelector(q);
+    const $$ = (q)=>Array.from(document.querySelectorAll(q));
+    const state = { uid:null, room:null, host:false, me:null, current:null, timerInt:null };
 
-const nameInput=document.getElementById('nameInput');
-const addBtn=document.getElementById('addBtn');
-const rosterEl=document.getElementById('roster');
-const pCountEl=document.getElementById('pCount');
-const clearRosterBtn=document.getElementById('clearRosterBtn');
-const allPassBtn=document.getElementById('allPassBtn');
-const reviveBtn=document.getElementById('reviveBtn');
+    // UI elements
+    const landing = els('#landing');
+    const hostLanding = els('#hostLanding');
+    const isHostToggle = els('#isHostToggle');
+    const hostRoomCode = els('#hostRoomCode');
+    const playerLimitEl = els('#playerLimit');
+    const createRoomBtn = els('#createRoomBtn');
+    const joinCode = els('#joinCode');
+    const displayName = els('#displayName');
+    const joinBtn = els('#joinBtn');
 
-// Tabs
-const tabLocal=document.getElementById('tabLocal');
-const tabHost=document.getElementById('tabHost');
-const tabPlayer=document.getElementById('tabPlayer');
+    const hostUI = els('#hostUI');
+    const roomCodeHost = els('#roomCodeHost');
+    const aliveCount = els('#aliveCount');
+    const qNumber = els('#qNumber');
+    const copyInvite = els('#copyInvite');
+    const playersList = els('#playersList');
+    const phaseTxt = els('#phaseTxt');
+    const deadlineTxt = els('#deadlineTxt');
+    const livePrompt = els('#livePrompt');
+    const liveChoices = els('#liveChoices');
 
-// Host panel
-const hostPanel=document.getElementById('hostPanel');
-const hostNameInput=document.getElementById('hostNameInput');
-const createRoomBtn=document.getElementById('createRoomBtn');
-const closeRoomBtn=document.getElementById('closeRoomBtn');
-const roomInfo=document.getElementById('roomInfo');
-const roomCodeEl=document.getElementById('roomCode');
-const shareLinkEl=document.getElementById('shareLink');
-const copyLinkBtn=document.getElementById('copyLinkBtn');
-const countsBox=document.getElementById('counts');
-const fa=document.getElementById('fa'), fb=document.getElementById('fb'), fc=document.getElementById('fc'), fd=document.getElementById('fd');
-const ca=document.getElementById('ca'), cb=document.getElementById('cb'), cc=document.getElementById('cc'), cd=document.getElementById('cd');
-const hostHint=document.getElementById('hostHint');
+    const qPrompt = els('#qPrompt');
+    const opt0 = els('#opt0');
+    const opt1 = els('#opt1');
+    const opt2 = els('#opt2');
+    const opt3 = els('#opt3');
+    const correctIndex = els('#correctIndex');
+    const answerWindow = els('#answerWindow');
+    const stageHiddenBtn = els('#stageHiddenBtn');
+    const revealBtn = els('#revealBtn');
+    const lockBtn = els('#lockBtn');
+    const scoreBtn = els('#scoreBtn');
+    const nextBtn = els('#nextBtn');
 
-// Player panel
-const playerPanel=document.getElementById('playerPanel');
-const playerName=document.getElementById('playerName');
-const joinCode=document.getElementById('joinCode');
-const joinBtn=document.getElementById('joinBtn');
-const playerHint=document.getElementById('playerHint');
+    const playerUI = els('#playerUI');
+    const roomCodePlayer = els('#roomCodePlayer');
+    const meName = els('#meName');
+    const statusTxt = els('#statusTxt');
+    const timeLeft = els('#timeLeft');
+    const pPrompt = els('#pPrompt');
+    const answerBtns = els('#answerBtns');
+    const qArea = els('#qArea');
+    const msg = els('#msg');
+    const eliminated = els('#eliminated');
 
-// Multi panel wrapper
-const mpanel=document.getElementById('mpanel');
+    // Helpers
+    const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
+    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
 
-/******************** Audio ********************/
-let AC=null; function ensureAC(){ if(!state.sound) return; if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
-function tone(f=440,d=0.08){ if(!state.sound||!AC) return; const o=AC.createOscillator(), g=AC.createGain(); o.type='sine'; o.frequency.value=f; o.connect(g); g.connect(AC.destination); const t=AC.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.2,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.start(t); o.stop(t+d+0.01); }
-function sfxCorrect(){ ensureAC(); [523,659,784].forEach((f,i)=>setTimeout(()=>tone(f,0.09),i*90)); }
-function sfxWrong(){ ensureAC(); [220,180,150].forEach((f,i)=>setTimeout(()=>tone(f,0.12),i*110)); }
-function sfxTick(){ ensureAC(); tone(420,0.05); }
-
-/******************** Helpers ********************/
-function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
-function setStatus(html){ statusEl.innerHTML = html; }
-function setRoleBadge(){ roleBadge.textContent = state.mode.charAt(0).toUpperCase()+state.mode.slice(1); }
-function setCloudChip(){ cloudChip.textContent = firebaseReady? '☁️ Cloud: On' : '☁️ Cloud: Off'; }
-function paintScoreChip(){ scoreChip.textContent = 'Auto‑Score: ' + (state.autoScore? 'On' : 'Off'); }
-
-/******************** Ladder ********************/
-function renderLadder(){ ladderEl.innerHTML=''; QUESTIONS.forEach((q,i)=>{ const d=document.createElement('div'); d.className='step'+(i<state.idx?' done':'')+(i===state.idx?' current':''); const l=document.createElement('div'); l.innerHTML=`<span class="pct">${q.pct}%</span>`; const r=document.createElement('div'); r.className='small muted'; r.textContent = i<state.idx? '✔' : (i===state.idx? 'Now' : 'Up next'); d.append(l,r); ladderEl.appendChild(d); }); }
-function buildEmptyLadder(){ ladderEl.innerHTML=''; QUESTIONS.forEach(()=>{ const d=document.createElement('div'); d.className='step'; d.innerHTML='<span class="pct">—%</span><span class="small muted">—</span>'; ladderEl.appendChild(d); }); }
-
-/******************** Core rendering ********************/
-function showQuestion(){
-  if(state.idx<0){ qPctEl.textContent='—%'; qTextEl.innerHTML=msgIntro(); optsEl.innerHTML=''; noteEl.hidden=true; noteEl.innerHTML=''; renderLadder(); return; }
-  const q=QUESTIONS[state.idx];
-  qPctEl.textContent=q.pct+'%';
-  qTextEl.innerHTML=q.q; noteEl.hidden=true; noteEl.innerHTML=''; optsEl.innerHTML='';
-  ['A','B','C','D'].forEach((lab,ix)=>{ const b=document.createElement('button'); b.className='opt'; b.dataset.idx=ix; b.innerHTML=`<span class="k">${lab}</span> <span>${q.a[ix]}</span>`; b.onclick=()=>select(ix); optsEl.appendChild(b); });
-  state.selected=null; state.revealed=false;
-  if(state.mode==='player'){ lockBtn.disabled=true; revealBtn.disabled=true; nextBtn.disabled=true; startBtn.disabled=true; }
-  else { revealBtn.disabled=true; nextBtn.disabled=true; lockBtn.disabled=true; }
-  setStatus('Pick an answer, then <b>Lock In</b> (or host reveal if synced).');
-  renderLadder();
-}
-function msgIntro(){ return 'Choose a mode above. <b>Local</b> runs on one screen. <b>Host</b> creates a room; <b>Player</b> joins from another device.'; }
-
-/******************** Local game flow ********************/
-function select(ix){ if(state.revealed) return; state.selected=ix; updateSelection(); sfxTick(); if(state.mode==='player') submitAnswer(ix); lockBtn.disabled=false; setStatus('Answer selected. <b>Lock In</b> to proceed.'); }
-function updateSelection(){ [...optsEl.children].forEach(btn=>btn.classList.toggle('selected', Number(btn.dataset.idx)===state.selected)); }
-function lockIn(){ if(state.selected==null) return; revealBtn.disabled=false; lockBtn.disabled=true; setStatus('Ready to reveal. (<span class="kb">R</span>)'); }
-function revealLocal(){ if(state.revealed||state.selected==null) return; const q=QUESTIONS[state.idx]; const c=q.c; [...optsEl.children].forEach(btn=>{ const ix=Number(btn.dataset.idx); btn.disabled=true; if(ix===c) btn.classList.add('correct'); if(ix===state.selected && ix!==c) btn.classList.add('wrong'); }); noteEl.hidden=false; noteEl.innerHTML=q.note; state.revealed=true; nextBtn.disabled=false; revealBtn.disabled=true; setStatus((state.selected===c)?'<b>Correct!</b>':'<b>Wrong.</b>'); (state.selected===c? sfxCorrect(): sfxWrong()); }
-function nextLocal(){ if(!state.revealed) return; if(state.idx>=QUESTIONS.length-1){ endGame(); return; } state.idx++; showQuestion(); }
-function startLocal(){ state.idx=0; showQuestion(); startBtn.disabled=true; }
-function resetLocal(){ state.idx=-1; state.selected=null; state.revealed=false; startBtn.disabled=false; revealBtn.disabled=true; nextBtn.disabled=true; lockBtn.disabled=true; qPctEl.textContent='—%'; qTextEl.innerHTML=msgIntro(); optsEl.innerHTML=''; noteEl.hidden=true; noteEl.innerHTML=''; setStatus(''); renderLadder(); }
-function endGame(){ setStatus('<b>1% question complete!</b> Congratulate your champions.'); qTextEl.innerHTML='🎉 You reached the 1% Club!'; optsEl.innerHTML=''; noteEl.hidden=true; revealBtn.disabled=true; nextBtn.disabled=true; lockBtn.disabled=true; }
-
-/******************** Cloud (Firestore) model ********************/
-function randomCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
-function roomDoc(){ if(!db||!state.cloud.room) throw new Error('Room/DB not ready'); return db.collection('rooms').doc(state.cloud.room); }
-function answersCol(){ return roomDoc().collection('answers'); }
-function playersCol(){ return roomDoc().collection('players'); }
-
-async function createRoom(){ if(!firebaseReady||!db) return false; const code=randomCode(); await db.collection('rooms').doc(code).set({ qIdx:0, revealed:false, createdAt:firebase.firestore.FieldValue.serverTimestamp(), open:true, hostUid: myUid||null }); state.cloud.room=code; onRoomChanged(); return true; }
-async function closeRoom(){ if(!state.cloud.room) return; await roomDoc().update({ open:false }); unsubscribeCloud(); state.cloud.room=null; onRoomChanged(); }
-async function joinRoom(code,name){ if(!firebaseReady) return alert('Cloud sync is off.'); if(!code) return alert('Enter a room code'); try{ await ensureAuth(); state.cloud.room=code.toUpperCase(); onRoomChanged(); await playersCol().doc(myUid).set({ name:name||'Player', passes:3, active:true, joinedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true}); }catch(e){ console.error('Join failed:', e); alert('Join failed: '+(e.message||e)); } }
-
-function subscribeRoom(){ if(!state.cloud.room||!firebaseReady) return; if(state.cloud.unsubRoom) state.cloud.unsubRoom(); state.cloud.unsubRoom = roomDoc().onSnapshot(s=>{ const r=s.data(); if(!r) return; const was=state.idx; state.idx=r.qIdx; state.revealed=r.revealed; if(was!==state.idx){ showQuestion(); watchCounts(); } if(state.revealed){ revealPaintOnly(); } renderLadder(); }); if(state.cloud.unsubPlayers) state.cloud.unsubPlayers(); state.cloud.unsubPlayers = playersCol().onSnapshot(snap=>{ state.players=[]; snap.forEach(doc=>{ const p=doc.data(); state.players.push({ id:doc.id, name:p.name||'Player', passes:p.passes??3, active:p.active??true }); }); renderRoster(); }); watchCounts(); }
-function unsubscribeCloud(){ if(state.cloud.unsubRoom){ state.cloud.unsubRoom(); state.cloud.unsubRoom=null; } if(state.cloud.unsubCounts){ state.cloud.unsubCounts(); state.cloud.unsubCounts=null; } if(state.cloud.unsubPlayers){ state.cloud.unsubPlayers(); state.cloud.unsubPlayers=null; } }
-
-function watchCounts(){ if(!firebaseReady||!state.cloud.room) return; if(state.cloud.unsubCounts) state.cloud.unsubCounts(); state.cloud.unsubCounts = answersCol().where('qIdx','==',state.idx).onSnapshot(snap=>{ const counts=[0,0,0,0]; const map={}; snap.forEach(d=>{ const data=d.data(); const ch=data.choice; if(ch>=0&&ch<4){ counts[ch]++; map[data.uid]=ch; } }); state.cloud.answers = map; renderCounts(counts); renderRoster(); }); }
-function renderCounts([A,B,C,D]){ const total=Math.max(1,A+B+C+D); countsBox.hidden=false; fa.style.width=(A*100/total)+'%'; fb.style.width=(B*100/total)+'%'; fc.style.width=(C*100/total)+'%'; fd.style.width=(D*100/total)+'%'; ca.textContent=A; cb.textContent=B; cc.textContent=C; cd.textContent=D; }
-
-async function hostReveal(){ if(!firebaseReady||!state.cloud.room) return revealLocal(); await roomDoc().update({ revealed:true }); await autoScoreHost(); }
-async function hostNext(){ if(!firebaseReady||!state.cloud.room) return nextLocal(); const nxt=Math.min(state.idx+1, QUESTIONS.length-1); await roomDoc().update({ qIdx:nxt, revealed:false }); }
-async function submitAnswer(choice){ if(!firebaseReady||!state.cloud.room) return; try{ await ensureAuth(); const id=`${state.idx}_${myUid}`; await answersCol().doc(id).set({ qIdx:state.idx, uid:myUid, choice, ts:firebase.firestore.FieldValue.serverTimestamp() }); }catch(e){ console.error('Submit failed:', e); } }
-function revealPaintOnly(){ const q=QUESTIONS[state.idx]; [...optsEl.children].forEach(btn=>{ const ix=Number(btn.dataset.idx); btn.disabled=true; if(ix===q.c) btn.classList.add('correct'); if(ix===state.selected && ix!==q.c) btn.classList.add('wrong'); }); noteEl.hidden=false; noteEl.innerHTML=q.note; }
-
-// Auto-scoring on host after Reveal
-async function autoScoreHost(){
-  if(!(state.mode==='host' && firebaseReady && state.cloud.room && state.autoScore)) return;
-  try{
-    const rsnap = await roomDoc().get();
-    const rdata = rsnap.data()||{};
-    if(rdata.scored === state.idx) return; // already scored this question
-    const correct = QUESTIONS[state.idx].c;
-    const batch = db.batch();
-    state.players.forEach(p=>{
-      const choice = state.cloud.answers ? state.cloud.answers[p.id] : undefined;
-      let changed=false, newPasses=p.passes, newActive=p.active;
-      if(choice !== correct){ // wrong or no answer
-        if(newPasses>0){ newPasses--; changed=true; }
-        if(newPasses<=0){ newActive=false; changed=true; }
-      }
-      if(changed){
-        p.passes=newPasses; p.active=newActive;
-        batch.set(playersCol().doc(p.id), { passes:newPasses, active:newActive }, { merge:true });
-      }
+    // Auth flow
+    onAuthStateChanged(auth, async (user)=>{
+      if(user){ state.uid = user.uid; return; }
+      await signInAnonymously(auth);
     });
-    await batch.commit();
-    await roomDoc().set({ scored: state.idx }, { merge:true });
-    renderRoster();
-  }catch(e){ console.error('autoScoreHost failed', e); }
-}
 
-/******************** Roster ********************/
-function loadRosterLocal(){ try{ const raw=localStorage.getItem('msk1pct_roster'); state.players = raw? JSON.parse(raw): []; }catch(e){ state.players=[]; } renderRoster(); }
-function saveRosterLocal(){ localStorage.setItem('msk1pct_roster', JSON.stringify(state.players)); }
-function addNamesLocal(names){ names.split(',').map(s=>s.trim()).filter(Boolean).forEach(n=>{ state.players.push({id:crypto.randomUUID(), name:n, passes:3, active:true}); }); saveRosterLocal(); renderRoster(); nameInput.value=''; }
-function renderRoster(){ rosterEl.innerHTML=''; const active=state.players.filter(p=>p.active).length; pCountEl.textContent = state.players.length? `· ${active}/${state.players.length} active` : ''; state.players.forEach(p=>{ const row=document.createElement('div'); row.className='row'; row.style.margin='6px 0'; const left=document.createElement('div'); left.innerHTML=`<b>${escapeHtml(p.name)}</b> <span class="small muted">${p.active?'· In':'· Out'}</span>`; const passes=document.createElement('div'); passes.className='pill'; const letters='ABCD'; const choice=(state.cloud.answers && (p.id in state.cloud.answers)) ? state.cloud.answers[p.id] : null; if(choice==null){ passes.textContent = `Passes: ${p.passes} • Ans: —`; } else { passes.textContent = `Passes: ${p.passes} • Ans: ${letters[choice]}`; if(state.revealed){ const correct=QUESTIONS[state.idx].c; passes.classList.add(choice===correct?'ok':'bad'); } } const passBtn=document.createElement('button'); passBtn.textContent='Pass'; passBtn.onclick=async()=>{ if(p.passes>0) p.passes--; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; const failBtn=document.createElement('button'); failBtn.textContent=p.active?'Fail':'Undo'; failBtn.onclick=async()=>{ p.active=!p.active; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ await playersCol().doc(p.id).set({ active:p.active },{merge:true}); } else { saveRosterLocal(); } renderRoster(); }; row.append(left,passes,passBtn,failBtn); rosterEl.appendChild(row); }); }
-function clearRoster(){ if(confirm('Clear all players?')){ state.players=[]; if(state.mode==='host'&&firebaseReady&&state.cloud.room){ /* manual cloud clear if desired */ } else { saveRosterLocal(); } renderRoster(); } }
-function giveAllPass(){ state.players.forEach(p=>{ if(p.active) p.passes = Math.max(0, p.passes-1); }); if(state.mode==='host'&&firebaseReady&&state.cloud.room){ state.players.forEach(async p=>{ await playersCol().doc(p.id).set({ passes:p.passes },{merge:true}); }); } else { saveRosterLocal(); } renderRoster(); }
-function reviveAll(){ state.players.forEach(p=> p.active=true); if(state.mode==='host'&&firebaseReady&&state.cloud.room){ state.players.forEach(async p=>{ await playersCol().doc(p.id).set({ active:true },{merge:true}); }); } else { saveRosterLocal(); } renderRoster(); }
+    // Landing mode toggle
+    isHostToggle.addEventListener('change', ()=>{
+      state.host = isHostToggle.checked;
+      hostLanding.classList.toggle('hide', !state.host);
+    });
 
-/******************** Events & UI wiring ********************/
-startBtn.onclick = ()=> state.mode==='local'? startLocal() : (state.mode==='host'? hostNext() : null);
-revealBtn.onclick = ()=> state.mode==='host'? hostReveal() : revealLocal();
-nextBtn.onclick = ()=> state.mode==='host'? hostNext() : nextLocal();
-lockBtn.onclick= lockIn;
+    // Host: create room
+    createRoomBtn.addEventListener('click', async ()=>{
+      const code = (hostRoomCode.value || genCode()).toUpperCase();
+      const limit = Math.min(80, Math.max(2, parseInt(playerLimitEl.value||"80",10)));
+      const roomRef = ref(db, `rooms/${code}`);
+      await set(child(roomRef,'meta'), {
+        hostUid: state.uid,
+        allowJoin: true,
+        playerLimit: limit,
+        qIndex: 0,
+        createdAt: Date.now()
+      });
+      // init current minimal (hidden)
+      await set(child(roomRef,'current'), { phase:'hidden', qid:0 });
+      state.room = code; state.host = true;
+      enterHost();
+    });
 
-soundChip.onclick = ()=>{ state.sound=!state.sound; soundChip.textContent = state.sound? '🔊 Sound: On' : '🔈 Sound: Off'; ensureAC(); if(state.sound) sfxTick(); };
-scoreChip.onclick = ()=>{ state.autoScore = !state.autoScore; localStorage.setItem('msk1pct_autoScore', JSON.stringify(state.autoScore)); paintScoreChip(); };
+    // Player: join
+    joinBtn.addEventListener('click', async ()=>{
+      const code = (joinCode.value||'').toUpperCase().trim();
+      const name = (displayName.value||'Player').trim();
+      if(!code) return alert('Enter room code');
+      const roomRef = ref(db, `rooms/${code}`);
+      const snap = await get(child(roomRef,'meta'));
+      if(!snap.exists()) return alert('Room not found');
+      const meta = snap.val();
+      if(!meta.allowJoin) return alert('Host has closed joining');
 
-addBtn.onclick = ()=> state.mode==='local'? addNamesLocal(nameInput.value) : alert('In Host mode, roster fills from players joining the room.');
-clearRosterBtn.onclick = clearRoster; allPassBtn.onclick = giveAllPass; reviveBtn.onclick = reviveAll;
+      // Soft capacity check
+      const playersSnap = await get(child(roomRef,'players'));
+      const count = playersSnap.exists()? Object.values(playersSnap.val()).filter(p=>p.present && !p.eliminated).length : 0;
+      if(count >= (meta.playerLimit||80)) return alert('Room is full');
 
-createRoomBtn.onclick = async()=>{ if(!firebaseReady||!db){ alert('Cloud sync is OFF — check FB_CONFIG and authorised domain.'); return; } const ok=await createRoom(); if(ok){ subscribeRoom(); paintRoomUi(); } };
-closeRoomBtn.onclick = async()=>{ if(!firebaseReady||!db||!state.cloud.room) return; await closeRoom(); paintRoomUi(); };
-copyLinkBtn.onclick = ()=>{ shareLinkEl.select(); document.execCommand('copy'); setStatus('Link copied to clipboard.'); };
-joinBtn.onclick = async()=>{ if(!firebaseReady||!db){ alert('Cloud sync is OFF'); return; } await joinRoom(joinCode.value, playerName.value||'Player'); subscribeRoom(); paintRoomUi(); };
+      // Upsert player profile
+      await update(child(roomRef,`players/${state.uid}`), {
+        name, present:true, eliminated:false, joinedAt: Date.now()
+      });
+      // Clean up on disconnect
+      const meRef = child(roomRef,`players/${state.uid}/present`);
+      onDisconnect(meRef).set(false);
 
-// Keyboard
-window.addEventListener('keydown', (e)=>{ if(['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return; const k=e.key.toLowerCase(); if(k==='a') select(0); else if(k==='b') select(1); else if(k==='c') select(2); else if(k==='d') select(3); else if(k==='r') (state.mode==='host'? hostReveal(): revealLocal()); else if(k==='n') (state.mode==='host'? hostNext(): nextLocal()); else if(k==='s') (state.mode==='local'? startLocal(): null); });
+      state.room = code; state.host = false; state.me = {name};
+      enterPlayer();
+    });
 
-// Tabs
-function setActiveTab(which){ [tabLocal,tabHost,tabPlayer].forEach(b=>b.classList.remove('active')); if(which==='local') tabLocal.classList.add('active'); if(which==='host') tabHost.classList.add('active'); if(which==='player') tabPlayer.classList.add('active'); }
-function switchMode(which){ state.mode=which; setActiveTab(which); setRoleBadge(); hostPanel.hidden = which!=='host'; playerPanel.hidden = which!=='player'; mpanel.style.display = (which==='local')? 'none':'grid'; if(which==='local'){ loadRosterLocal(); } else { state.players=[]; renderRoster(); } showQuestion(); paintRoomUi(); }
-[tabLocal,tabHost,tabPlayer].forEach(b=> b.onclick = ()=> switchMode(b.id==='tabLocal'?'local':(b.id==='tabHost'?'host':'player')));
+    // ---- Host UI handlers ----
+    async function enterHost(){
+      landing.classList.add('hide');
+      hostUI.classList.remove('hide');
+      roomCodeHost.textContent = state.room;
+      wireRoomListeners();
+    }
 
-/******************** Paint cloud UI ********************/
-function onRoomChanged(){ paintRoomUi(); if(state.cloud.room){ subscribeRoom(); } }
-function paintRoomUi(){ setCloudChip(); paintScoreChip(); const hasRoom=!!state.cloud.room; roomBadge.hidden=!hasRoom; roomBadge.textContent='Room: '+(state.cloud.room||'—'); if(state.mode==='host'){ closeRoomBtn.disabled=!hasRoom; createRoomBtn.disabled=!firebaseReady || hasRoom; roomInfo.hidden=!hasRoom; countsBox.hidden=!hasRoom; hostHint.hidden=hasRoom; startBtn.disabled=!hasRoom; revealBtn.disabled=!hasRoom; nextBtn.disabled=!hasRoom; }
-  else if(state.mode==='player'){ joinBtn.disabled=!firebaseReady; playerHint.textContent = firebaseReady? 'Enter code + name, then join.' : 'Cloud is Off — add Firebase config in the file to enable joining rooms.'; startBtn.disabled=true; revealBtn.disabled=true; nextBtn.disabled=true; }
-  else { roomInfo.hidden=true; countsBox.hidden=true; roomBadge.hidden=true; startBtn.disabled=false; revealBtn.disabled=true; nextBtn.disabled=true; }
-}
+    // Arm question (hidden)
+    stageHiddenBtn.addEventListener('click', async ()=>{
+      const code = state.room; if(!code) return;
+      const metaRef = ref(db, `rooms/${code}/meta`);
+      const metaSnap = await get(metaRef); const meta = metaSnap.val();
+      const qid = (meta.qIndex||0)+1;
+      await update(metaRef, { qIndex: qid });
+      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null });
+      qNumber.textContent = qid;
+      phaseTxt.textContent = 'hidden';
+    });
 
-/******************** Init ********************/
-function init(){ setCloudChip(); setRoleBadge(); paintScoreChip(); buildEmptyLadder(); resetLocal(); const params=new URLSearchParams(location.search); const pre=(params.get('room')||'').toUpperCase(); if(pre){ switchMode('player'); joinCode.value=pre; } }
-init();
-</script>
+    // Reveal question & start timer
+    revealBtn.addEventListener('click', async ()=>{
+      if(!qPrompt.value.trim()) return alert('Enter a question');
+      const choices = [opt0.value, opt1.value, opt2.value, opt3.value];
+      if(choices.some(c=>!c || !c.trim())) return alert('Enter all 4 choices');
+      const secs = parseInt(answerWindow.value,10);
+      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
+      const curSnap = await get(currentRef); const cur = curSnap.val();
+      const deadline = Date.now() + secs*1000;
+      await update(currentRef, {
+        phase:'revealed', prompt:qPrompt.value.trim(), choices, deadline
+      });
+    });
+
+    // Lock answers now (forces deadline to now)
+    lockBtn.addEventListener('click', async ()=>{
+      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
+      await update(currentRef, { phase:'locked', deadline: Date.now() });
+    });
+
+    // Score: reveal correct & eliminate wrong
+    scoreBtn.addEventListener('click', async ()=>{
+      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
+      const cur = (await get(currentRef)).val();
+      if(cur.phase === 'hidden') return alert('Reveal first');
+      const cIdx = parseInt(correctIndex.value,10);
+      await update(currentRef, { phase:'result', correctIndex: cIdx });
+
+      // Fetch answers + players
+      const [ansSnap, playersSnap] = await Promise.all([
+        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
+        get(ref(db,`rooms/${code}/players`))
+      ]);
+      const answers = ansSnap.exists()? ansSnap.val(): {};
+      const players = playersSnap.exists()? playersSnap.val(): {};
+
+      const updates = {};
+      let alive = 0, eliminatedCount = 0;
+      Object.entries(players).forEach(([uid, p])=>{ if(p.present && !p.eliminated) alive++; });
+      // eliminate wrong + no-answers
+      Object.entries(players).forEach(([uid,p])=>{
+        if(!(p.present && !p.eliminated)) return;
+        const a = answers[uid];
+        const wrongOrMissing = !a || a.index !== cIdx;
+        if(wrongOrMissing){
+          updates[`rooms/${code}/players/${uid}/eliminated`] = true; eliminatedCount++;
+        }
+      });
+      await update(ref(db), updates);
+    });
+
+    // Next question (clear current)
+    nextBtn.addEventListener('click', async ()=>{
+      const code = state.room; const meta = (await get(ref(db,`rooms/${code}/meta`))).val();
+      const qid = (meta.qIndex||0) + 1;
+      await update(ref(db,`rooms/${code}/meta`), { qIndex: qid });
+      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null });
+      qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
+      correctIndex.value = '0';
+    });
+
+    copyInvite.addEventListener('click', async ()=>{
+      const url = `${location.origin}${location.pathname}?room=${state.room}`;
+      await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
+      copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
+    });
+
+    // ---- Player UI ----
+    async function enterPlayer(){
+      landing.classList.add('hide');
+      playerUI.classList.remove('hide');
+      roomCodePlayer.textContent = state.room;
+      meName.textContent = state.me?.name || '';
+      wireRoomListeners();
+    }
+
+    // ---- Shared room listeners ----
+    function wireRoomListeners(){
+      const code = state.room; if(!code) return;
+      // Live meta
+      onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
+        const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
+      });
+      // Live current
+      onValue(ref(db,`rooms/${code}/current`), (snap)=>{
+        state.current = snap.val()||{};
+        const cur = state.current;
+        // Host view
+        phaseTxt.textContent = cur.phase || '—';
+        deadlineTxt.textContent = cur.deadline? new Date(cur.deadline).toLocaleTimeString(): '—';
+        livePrompt.textContent = cur.prompt || '—';
+        liveChoices.innerHTML = '';
+        if(cur.choices){ cur.choices.forEach((c,i)=>{
+          const div = document.createElement('div'); div.className='tag'; div.textContent = ['A','B','C','D'][i]+': '+c; liveChoices.appendChild(div);
+        }); }
+        // Player view
+        if(!state.host){
+          statusTxt.textContent = cur.phase;
+          if(cur.phase === 'revealed'){
+            msg.classList.add('hide'); qArea.classList.remove('hide'); eliminated.classList.add('hide');
+            pPrompt.textContent = cur.prompt || '—';
+            renderAnswerButtons(cur);
+            startTimer(cur.deadline);
+          } else if(cur.phase === 'locked'){
+            stopTimer(); timeLeft.textContent = '0';
+          } else if(cur.phase === 'result'){
+            stopTimer();
+            revealCorrect(cur);
+          } else { // hidden or others
+            msg.classList.remove('hide'); qArea.classList.add('hide');
+          }
+        }
+      });
+      // Players list for host + count for both
+      onValue(ref(db,`rooms/${code}/players`), (snap)=>{
+        const players = snap.val()||{};
+        const alive = Object.values(players).filter(p=>p.present && !p.eliminated).length;
+        aliveCount.textContent = alive;
+        if(state.host){
+          playersList.innerHTML = '';
+          Object.entries(players).forEach(([uid,p])=>{
+            const row = document.createElement('div'); row.className='row';
+            const name = document.createElement('div'); name.textContent = p.name||'Player';
+            const tags = document.createElement('div'); tags.className='row';
+            tags.innerHTML = `<span class="tag">${p.present? 'present':'offline'}</span> <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>`;
+            row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
+          });
+        } else {
+          const me = players[state.uid]||{};
+          if(me.eliminated){ qArea.classList.add('hide'); eliminated.classList.remove('hide'); }
+        }
+      });
+    }
+
+    function renderAnswerButtons(cur){
+      answerBtns.innerHTML = '';
+      ['A','B','C','D'].forEach((letter,i)=>{
+        const btn = document.createElement('button'); btn.className='answerBtn';
+        btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
+        btn.addEventListener('click', ()=> submitAnswer(i));
+        answerBtns.appendChild(btn);
+      });
+    }
+
+    async function submitAnswer(index){
+      const code = state.room; const cur = state.current; if(!cur || cur.phase!=='revealed') return;
+      const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${state.uid}`);
+      try{
+        await set(ansRef, { index, at: Date.now() });
+        // highlight selection locally
+        $$('.answerBtn').forEach((b,bi)=> b.classList.toggle('selected', bi===index));
+      }catch(err){ alert('Answer not accepted (maybe time is up).'); console.error(err); }
+    }
+
+    function revealCorrect(cur){
+      if(cur.correctIndex == null) return; // host may set slightly later
+      $$('.answerBtn').forEach((b,bi)=>{
+        b.classList.toggle('correct', bi===cur.correctIndex);
+        b.classList.toggle('wrong', bi!==cur.correctIndex);
+        b.disabled = true;
+      });
+    }
+
+    function startTimer(deadline){
+      stopTimer();
+      const tick = ()=>{
+        const ms = Math.max(0, deadline - Date.now());
+        const s = Math.ceil(ms/1000); timeLeft.textContent = String(s);
+        if(ms<=0) stopTimer();
+      };
+      tick(); state.timerInt = setInterval(tick, 200);
+    }
+    function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
+  </script>
 </body>
 </html>
