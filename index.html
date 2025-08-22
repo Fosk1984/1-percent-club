@@ -61,7 +61,7 @@
     <h1>🧠 The 1% Club — Multiplayer</h1>
     <div id="landing" class="card">
       <div class="row">
-        <label class="pill"><input type="checkbox" id="isHostToggle"> &nbsp; I'm the host</label>
+        <label class="pill"><input type="checkbox" id="isHostToggle">I'm the host</label>
         <span class="hint">GitHub Pages + Firebase (Anonymous sign-in). Room code sharing built-in.</span>
       </div>
       <div id="hostLanding" class="grid g2" style="margin-top:8px;">
@@ -195,84 +195,6 @@
       </div>
       <div id="eliminated" class="hide center" style="height:160px"><div class="big">❌ You’ve been eliminated</div></div>
     </div>
-
-    <div class="card" id="howto">
-      <h2>Setup (one-time)</h2>
-      <ol>
-        <li>Create a Firebase project → enable <b>Anonymous Auth</b> and create a <b>Realtime Database</b> (locked mode).</li>
-        <li>Copy your Firebase <b>web config</b> and paste into <span class="mono">FIREBASE_CONFIG</span> below in the code.</li>
-        <li>Paste these <b>Rules</b> into Realtime Database → Rules tab (you can tighten later):<br>
-<pre class="small" style="white-space:pre-wrap; background:#0c1230; padding:10px; border-radius:12px; border:1px solid var(--edge)">{
-  "rules": {
-    ".read": false,
-    ".write": false,
-
-    "rooms": {
-      "$code": {
-        "meta": {
-          ".read": "auth != null",
-          ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() == auth.uid) || (data.exists() && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid))",
-          "hostUid":     { ".validate": "newData.isString()" },
-          "allowJoin":   { ".validate": "newData.isBoolean()" },
-          "playerLimit": { ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 80" },
-          "qIndex":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
-          "createdAt":   { ".validate": "newData.isNumber()" }
-        },
-
-        "current": {
-          ".read":  "auth != null",
-          ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
-          "phase":        { ".validate": "newData.isString() && (newData.val() == 'hidden' || newData.val() == 'revealed' || newData.val() == 'locked' || newData.val() == 'result')" },
-          "qid":          { ".validate": "newData.isNumber() && newData.val() >= 0" },
-          "deadline":     { ".validate": "newData.isNumber()" },
-          "prompt":       { ".validate": "newData.isString() && newData.val().length <= 300" },
-          "correctIndex": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
-          "choices": {
-            ".validate": "newData.hasChildren(['0','1','2','3'])",
-            "0": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
-            "1": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
-            "2": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
-            "3": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
-            "$other": { ".validate": false }
-          },
-          "stats": {
-            ".validate": "newData.hasChildren(['counts','total']) && newData.child('total').isNumber() && newData.child('counts/0').isNumber() && newData.child('counts/1').isNumber() && newData.child('counts/2').isNumber() && newData.child('counts/3').isNumber()"
-          }
-        },
-
-        "players": {
-          ".read": "auth != null",
-          "$uid": {
-            ".write": "auth != null && $uid == auth.uid",
-            "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 24" },
-            "present":  { ".validate": "newData.isBoolean()" },
-            "joinedAt": { ".validate": "newData.isNumber()" },
-            "eliminated": {
-              ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
-              ".validate": "newData.isBoolean()"
-            }
-          }
-        },
-
-        "answers": {
-          ".read": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
-          "$qid": {
-            "$uid": {
-              ".write": "auth != null && auth.uid == $uid && root.child('rooms/'+$code+'/current/phase').val() == 'revealed' && root.child('rooms/'+$code+'/current/deadline').isNumber() && now <= root.child('rooms/'+$code+'/current/deadline').val() + 1500 && !data.exists()",
-              ".validate": "newData.hasChildren(['index','at']) && newData.child('index').isNumber() && newData.child('index').val() >= 0 && newData.child('index').val() <= 3 && newData.child('at').isNumber()"
-            }
-          }
-        }
-      }
-    }
-  }
-}
-</pre>
-        </li>
-        <li>Commit this single <b>index.html</b> file to a GitHub repo → enable GitHub Pages (main branch /root).</li>
-      </ol>
-    </div>
-  </div>
 
   <!-- 🔧 Replace FIREBASE_CONFIG below with your actual Firebase web config -->
   <script type="module">
