@@ -206,9 +206,26 @@
 /******************** Firebase bootstrap (optional) ********************/
 // 1) Fill your config below. If left as-is, cloud sync stays Off and Local mode works normally.
 const FB_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID"
+ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
+    authDomain: "percent-club-76c05.firebaseapp.com",
+    projectId: "percent-club-76c05",
+    storageBucket: "percent-club-76c05.firebasestorage.app",
+    messagingSenderId: "87140817040",
+    appId: "1:87140817040:web:5ff5bae0a42c999097a015",
+    measurementId: "G-G7FMP4XBFN"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
 };
 let firebaseReady = false, db = null, myUid = null;
 (function initFirebase(){
@@ -393,7 +410,7 @@ function playersCol(){ return roomDoc().collection('players'); }
 
 async function createRoom(){ if(!firebaseReady) return alert('Cloud sync is off. Add Firebase config first.');
   const code = randomCode();
-  await db.collection('rooms').doc(code).set({ qIdx:0, revealed:false, createdAt:firebase.firestore.FieldValue.serverTimestamp(), open:true });
+  await db.collection('rooms').doc(code).set({ qIdx:0, revealed:false, createdAt:firebase.firestore.FieldValue.serverTimestamp(), open:true, hostUid: myUid  });
   state.cloud.room = code; onRoomChanged();
 }
 async function closeRoom(){ if(!state.cloud.room) return; await roomDoc().update({ open:false }); unsubscribeCloud(); state.cloud.room=null; onRoomChanged(); }
