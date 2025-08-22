@@ -551,132 +551,168 @@
       wireRoomListeners();
     }
 
-    // ---- Shared room listeners ----
-    function wireRoomListeners(){
-      const code = state.room; if(!code) return;
-      // Live meta
-      onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
-        const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
+// ---- Shared room listeners ----
+function wireRoomListeners(){
+  const code = state.room; if(!code) return;
+
+  // Live meta
+  onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
+    const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
+  });
+
+  // Live current (question state)
+  onValue(ref(db,`rooms/${code}/current`), (snap)=>{
+    state.current = snap.val()||{};
+    const cur = state.current;
+
+    // Host view
+    phaseTxt.textContent = cur.phase || '—';
+    deadlineTxt.textContent = cur.deadline? new Date(cur.deadline).toLocaleTimeString(): '—';
+    livePrompt.textContent = cur.prompt || '—';
+    liveChoices.innerHTML = '';
+    if (cur.choices){
+      cur.choices.forEach((c,i)=>{
+        const div = document.createElement('div');
+        div.className='tag';
+        div.textContent = ['A','B','C','D'][i]+': '+c;
+        liveChoices.appendChild(div);
       });
-      // Live current
-      onValue(ref(db,`rooms/${code}/current`), (snap)=>{
-        state.current = snap.val()||{};
-        const cur = state.current;
-        // Host view
-        phaseTxt.textContent = cur.phase || '—';
-        deadlineTxt.textContent = cur.deadline? new Date(cur.deadline).toLocaleTimeString(): '—';
-        livePrompt.textContent = cur.prompt || '—';
-        liveChoices.innerHTML = '';
-        if(cur.choices){ cur.choices.forEach((c,i)=>{
-          const div = document.createElement('div'); div.className='tag'; div.textContent = ['A','B','C','D'][i]+': '+c; liveChoices.appendChild(div);
-        }); }
-        // Host results
-        if(state.host){
-          const counts = cur.stats && cur.stats.counts ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0] : null;
-          renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
-        }
-        // Player view
-        if(!state.host){
-          statusTxt.textContent = state.meEliminated ? 'spectating' : (cur.phase || '—');
-          if(cur.phase === 'revealed' || cur.phase === 'locked' || cur.phase === 'result'){
-            msg.classList.add('hide'); qArea.classList.remove('hide');
-            pPrompt.textContent = cur.prompt || '—';
-            renderAnswerButtons(cur);
-            if(cur.phase === 'revealed') startTimer(cur.deadline); else stopTimer();
-            // Player results (only on result)
-            const countsP = cur.stats && cur.stats.counts ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0] : null;
-            if(cur.phase === 'result') renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex); else resultsPlayer.innerHTML='';
-            if(cur.phase === 'result') revealCorrect(cur);
-          } else { // hidden or others
-            msg.classList.remove('hide'); qArea.classList.add('hide'); resultsPlayer.innerHTML='';
-          }
-        }
-      });
-      // Players list for host + count for both
-      onValue(ref(db,`rooms/${code}/players`), (snap)=>{
-        const players = snap.val()||{};
-        const alive = Object.values(players).filter(p=>p.present && !p.eliminated).length;
-        aliveCount.textContent = alive;
-        if(state.host){
-          playersList.innerHTML = '';
-          Object.entries(players).forEach(([uid,p])=>{
-            const row = document.createElement('div'); row.className='row';
-            const name = document.createElement('div'); name.textContent = p.name||'Player';
-            const tags = document.createElement('div'); tags.className='row';
-            tags.innerHTML = `<span class=\"tag\">${p.present? 'present':'offline'}</span> <span class=\"tag\">${p.eliminated? '❌ out':'✅ in'}</span>`;
-            row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
-          });
+    }
+    // Host results (histogram)
+    if (state.host){
+      const counts = cur.stats && cur.stats.counts
+        ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
+        : null;
+      renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
+    }
+
+    // Player view (incl. spectator mode)
+    if (!state.host){
+      statusTxt.textContent = state.meEliminated ? 'spectating' : (cur.phase || '—');
+
+      if (cur.phase === 'revealed' || cur.phase === 'locked' || cur.phase === 'result'){
+        msg.classList.add('hide');
+        qArea.classList.remove('hide');
+        pPrompt.textContent = cur.prompt || '—';
+        renderAnswerButtons(cur);
+
+        if (cur.phase === 'revealed') startTimer(cur.deadline);
+        else stopTimer();
+
+        // Player histogram only on result
+        const countsP = cur.stats && cur.stats.counts
+          ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
+          : null;
+        if (cur.phase === 'result') {
+          renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
+          revealCorrect(cur);
         } else {
-          const me = players[state.uid]||{};
-          state.meEliminated = !!me.eliminated;
-          if(state.meEliminated){ eliminated.classList.remove('hide'); } else { eliminated.classList.add('hide'); }
+          resultsPlayer.innerHTML = '';
         }
+      } else {
+        // hidden or other phases
+        msg.classList.remove('hide');
+        qArea.classList.add('hide');
+        resultsPlayer.innerHTML = '';
+      }
+    }
+  });
+
+  // Players list + alive count
+  onValue(ref(db,`rooms/${code}/players`), (snap)=>{
+    const players = snap.val()||{};
+    const alive = Object.values(players).filter(p=>p.present && !p.eliminated).length;
+    aliveCount.textContent = alive;
+
+    if (state.host){
+      playersList.innerHTML = '';
+      Object.entries(players).forEach(([uid,p])=>{
+        const row = document.createElement('div'); row.className='row';
+        const name = document.createElement('div'); name.textContent = p.name||'Player';
+        const tags = document.createElement('div'); tags.className='row';
+        tags.innerHTML =
+          `<span class="tag">${p.present? 'present':'offline'}</span> `+
+          `<span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>`;
+        row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
       });
+    } else {
+      const me = players[state.uid]||{};
+      state.meEliminated = !!me.eliminated;
+      if (state.meEliminated) eliminated.classList.remove('hide');
+      else eliminated.classList.add('hide');
     }
+  });
+}
 
-    function renderAnswerButtons(cur){
-      answerBtns.innerHTML = '';
-      const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
-      ['A','B','C','D'].forEach((letter,i)=>{
-        const btn = document.createElement('button'); btn.className='answerBtn';
-        btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
-        btn.disabled = !canAnswer;
-        if(canAnswer){ btn.addEventListener('click', ()=> submitAnswer(i)); }
-        answerBtns.appendChild(btn);
-      });
-    }
+function renderAnswerButtons(cur){
+  answerBtns.innerHTML = '';
+  const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
+  ['A','B','C','D'].forEach((letter,i)=>{
+    const btn = document.createElement('button'); btn.className='answerBtn';
+    btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
+    btn.disabled = !canAnswer;
+    if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
+    answerBtns.appendChild(btn);
+  });
+}
 
-    async function submitAnswer(index){
-      const code = state.room; const cur = state.current; if(!cur || cur.phase!=='revealed') return;
-      const uid = auth.currentUser?.uid || state.uid;
-      if(!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
-      const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
-      try{
-        await set(ansRef, { index, at: Date.now() + serverOffset });
-        // highlight selection locally
-        $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
-      }catch(err){ alert('Answer not accepted (maybe time is up).'); console.error(err); }
-    }
+async function submitAnswer(index){
+  const code = state.room; const cur = state.current;
+  if (!cur || cur.phase!=='revealed') return;
+  const uid = auth.currentUser?.uid || state.uid;
+  if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
+  const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
+  try{
+    await set(ansRef, { index, at: Date.now() + serverOffset });
+    // highlight selection locally and prevent resubmits
+    $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
+  }catch(err){
+    alert('Answer not accepted (maybe time is up).'); console.error(err);
+  }
+}
 
-    function revealCorrect(cur){
-      if(cur.correctIndex == null) return; // host may set slightly later
-      $$('.answerBtn').forEach((b,bi)=>{
-        b.classList.toggle('correct', bi===cur.correctIndex);
-        b.classList.toggle('wrong', bi!==cur.correctIndex);
-        b.disabled = true;
-      });
-    }
+function revealCorrect(cur){
+  if (cur.correctIndex == null) return;
+  $$('.answerBtn').forEach((b,bi)=>{
+    b.classList.toggle('correct', bi===cur.correctIndex);
+    b.classList.toggle('wrong', bi!==cur.correctIndex);
+    b.disabled = true;
+  });
+}
 
-    function startTimer(deadline){
-      stopTimer();
-      const tick = ()=>{
-        const ms = Math.max(0, deadline - (Date.now() + serverOffset));
-        const s = Math.ceil(ms/1000); timeLeft.textContent = String(s);
-        if(ms<=0) stopTimer();
-      };
-      tick(); state.timerInt = setInterval(tick, 200);
-    }
-    function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
+function startTimer(deadline){
+  stopTimer();
+  const tick = ()=>{
+    // compare deadline (server time) to local+offset = server now
+    const ms = Math.max(0, deadline - (Date.now() + serverOffset));
+    const s = Math.ceil(ms/1000);
+    timeLeft.textContent = String(s);
+    if (ms <= 0) stopTimer();
+  };
+  tick();
+  state.timerInt = setInterval(tick, 200);
+}
+function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
 
-    // ----- Results rendering -----
-    function renderResults(container, countsArr, total, correctIdx){
-      if(!container) return;
-      if(!countsArr){ container.innerHTML=''; return; }
-      const labels = ['A','B','C','D'];
-      const max = Math.max(1, ...countsArr);
-      container.innerHTML = countsArr.map((n,i)=>{
-        const pct = total? Math.round(n*100/total) : 0;
-        const barW = Math.max(5, Math.round((n/max)*100));
-        const strong = (i===Number(correctIdx)) ? 'font-weight:700;' : '';
-        return `<div class="row" style="gap:8px; align-items:center">
-          <div class="tag" style="min-width:2rem; ${strong}">${labels[i]}</div>
-          <div style="flex:1; border:1px solid var(--edge); border-radius:999px; overflow:hidden">
-            <div style="height:12px; width:${barW}%; background:#1f2a55"></div>
-          </div>
-          <div class="small" style="min-width:72px; text-align:right">${n} (${pct}%)</div>
-        </div>`;
-      }).join('');
-    }
-  </script>
+// ----- Results rendering -----
+function renderResults(container, countsArr, total, correctIdx){
+  if(!container) return;
+  if(!countsArr){ container.innerHTML=''; return; }
+  const labels = ['A','B','C','D'];
+  const max = Math.max(1, ...countsArr);
+  container.innerHTML = countsArr.map((n,i)=>{
+    const pct = total? Math.round(n*100/total) : 0;
+    const barW = Math.max(5, Math.round((n/max)*100));
+    const strong = (i===Number(correctIdx)) ? 'font-weight:700;' : '';
+    return `<div class="row" style="gap:8px; align-items:center">
+      <div class="tag" style="min-width:2rem; ${strong}">${labels[i]}</div>
+      <div style="flex:1; border:1px solid var(--edge); border-radius:999px; overflow:hidden">
+        <div style="height:12px; width:${barW}%;"></div>
+      </div>
+      <div class="small" style="min-width:72px; text-align:right">${n} (${pct}%)</div>
+    </div>`;
+  }).join('');
+}
+</script>
 </body>
 </html>
