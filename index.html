@@ -472,70 +472,75 @@
     });
 
     // Score: reveal correct & eliminate wrong
-// Reveal correct, eliminate wrong, and publish stats
-scoreBtn.addEventListener('click', async () => {
-  const code = state.room;
-  const currentRef = ref(db, `rooms/${code}/current`);
-  const curSnap = await get(currentRef);
-  const cur = curSnap.val();
-  if (!cur || cur.phase === 'hidden') { alert('Reveal first'); return; }
+    scoreBtn.addEventListener('click', async ()=>{
+      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
+      const cur = (await get(currentRef)).val();
+      if(cur.phase === 'hidden') return alert('Reveal first');
+      const cIdx = parseInt(correctIndex.value,10);
+      await update(currentRef, { phase:'result', correctIndex: cIdx });
 
-  const cIdx = parseInt(correctIndex.value, 10);
-  await update(currentRef, { phase: 'result', correctIndex: cIdx });
+      // Fetch answers + players
+      const [ansSnap, playersSnap] = await Promise.all([
+        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
+        get(ref(db,`rooms/${code}/players`))
+      ]);
+      const answers = ansSnap.exists()? ansSnap.val(): {};
+      const players = playersSnap.exists()? playersSnap.val(): {};
 
-  // Fetch answers + players
-  const [ansSnap, playersSnap] = await Promise.all([
-    get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
-    get(ref(db, `rooms/${code}/players`))
-  ]);
+      const updates = {};
+      Object.entries(players).forEach(([uid,p])=>{
+        if(!(p.present && !p.eliminated)) return;
+        const a = answers[uid];
+        const wrongOrMissing = !a || a.index !== cIdx;
+        if(wrongOrMissing){ updates[`rooms/${code}/players/${uid}/eliminated`] = true; }
+      });
+      await update(ref(db), updates);
 
-  const answers = ansSnap.exists() ? ansSnap.val() : {};
-  const players = playersSnap.exists() ? playersSnap.val() : {};
+      // Aggregate results and publish lightweight stats into current
+      const counts = [0,0,0,0];
+      let total = 0;
+      Object.values(answers).forEach(a=>{ if(a && Number.isInteger(a.index) && a.index>=0 && a.index<=3){ counts[a.index]++; total++; } });
+      await update(currentRef, { stats: { counts: {0:counts[0],1:counts[1],2:counts[2],3:counts[3]}, total } });
+    });
 
-  // Eliminate wrong / no-answer
-  const updates = {};
-  for (const [uid, p] of Object.entries(players)) {
-    if (!(p.present && !p.eliminated)) continue;
-    const a = answers[uid];
-    const wrongOrMissing = !a || a.index !== cIdx;
-    if (wrongOrMissing) {
-      updates[`rooms/${code}/players/${uid}/eliminated`] = true;
-    }
-  }
-  if (Object.keys(updates).length) {
-    await update(ref(db), updates);
-  }
+      // Fetch answers + players
+      const [ansSnap, playersSnap] = await Promise.all([
+        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
+        get(ref(db,`rooms/${code}/players`))
+      ]);
+      const answers = ansSnap.exists()? ansSnap.val(): {};
+      const players = playersSnap.exists()? playersSnap.val(): {};
 
-  // Aggregate results and publish lightweight stats
-  const counts = [0, 0, 0, 0];
-  let total = 0;
-  for (const a of Object.values(answers)) {
-    if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) {
-      counts[a.index]++; total++;
-    }
-  }
-  await update(currentRef, {
-    stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total }
-  });
-});
+      const updates = {};
+      let alive = 0, eliminatedCount = 0;
+      Object.entries(players).forEach(([uid, p])=>{ if(p.present && !p.eliminated) alive++; });
+      // eliminate wrong + no-answers
+      Object.entries(players).forEach(([uid,p])=>{
+        if(!(p.present && !p.eliminated)) return;
+        const a = answers[uid];
+        const wrongOrMissing = !a || a.index !== cIdx;
+        if(wrongOrMissing){
+          updates[`rooms/${code}/players/${uid}/eliminated`] = true; eliminatedCount++;
+        }
+      });
+      await update(ref(db), updates);
+    });
 
-// Next question (clear current)
-nextBtn.addEventListener('click', async () => {
-  const code = state.room;
-  const metaSnap = await get(ref(db, `rooms/${code}/meta`));
-  const meta = metaSnap.val() || {};
-  const qid = (meta.qIndex || 0) + 1;
+    // Next question (clear current)
+    nextBtn.addEventListener('click', async ()=>{
+      const code = state.room; const meta = (await get(ref(db,`rooms/${code}/meta`))).val();
+      const qid = (meta.qIndex||0) + 1;
+      await update(ref(db,`rooms/${code}/meta`), { qIndex: qid });
+      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null });
+      qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
+      correctIndex.value = '0';
+    });
 
-  await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
-  await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null });
-
-  qPrompt.value = '';
-  opt0.value = '';
-  opt1.value = '';
-  opt2.value = '';
-  opt3.value = '';
-  correctIndex.value = '0';
-});
+    copyInvite.addEventListener('click', async ()=>{
+      const url = `${location.origin}${location.pathname}?room=${state.room}`;
+      await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
+      copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
+    });
 
     // ---- Player UI ----
     async function enterPlayer(){
@@ -586,24 +591,6 @@ nextBtn.addEventListener('click', async () => {
             msg.classList.remove('hide'); qArea.classList.add('hide'); resultsPlayer.innerHTML='';
           }
         }
-      }); }
-        // Player view
-        if(!state.host){
-          statusTxt.textContent = cur.phase;
-          if(cur.phase === 'revealed'){
-            msg.classList.add('hide'); qArea.classList.remove('hide'); eliminated.classList.add('hide');
-            pPrompt.textContent = cur.prompt || '—';
-            renderAnswerButtons(cur);
-            startTimer(cur.deadline);
-          } else if(cur.phase === 'locked'){
-            stopTimer(); timeLeft.textContent = '0';
-          } else if(cur.phase === 'result'){
-            stopTimer();
-            revealCorrect(cur);
-          } else { // hidden or others
-            msg.classList.remove('hide'); qArea.classList.add('hide');
-          }
-        }
       });
       // Players list for host + count for both
       onValue(ref(db,`rooms/${code}/players`), (snap)=>{
@@ -616,18 +603,13 @@ nextBtn.addEventListener('click', async () => {
             const row = document.createElement('div'); row.className='row';
             const name = document.createElement('div'); name.textContent = p.name||'Player';
             const tags = document.createElement('div'); tags.className='row';
-            tags.innerHTML = `<span class="tag">${p.present? 'present':'offline'}</span> <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>`;
+            tags.innerHTML = `<span class=\"tag\">${p.present? 'present':'offline'}</span> <span class=\"tag\">${p.eliminated? '❌ out':'✅ in'}</span>`;
             row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
           });
         } else {
           const me = players[state.uid]||{};
           state.meEliminated = !!me.eliminated;
           if(state.meEliminated){ eliminated.classList.remove('hide'); } else { eliminated.classList.add('hide'); }
-        }
-      });
-        } else {
-          const me = players[state.uid]||{};
-          if(me.eliminated){ qArea.classList.add('hide'); eliminated.classList.remove('hide'); }
         }
       });
     }
@@ -640,10 +622,6 @@ nextBtn.addEventListener('click', async () => {
         btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
         btn.disabled = !canAnswer;
         if(canAnswer){ btn.addEventListener('click', ()=> submitAnswer(i)); }
-        answerBtns.appendChild(btn);
-      });
-    }. ${cur.choices?.[i]||''}`;
-        btn.addEventListener('click', ()=> submitAnswer(i));
         answerBtns.appendChild(btn);
       });
     }
@@ -672,7 +650,7 @@ nextBtn.addEventListener('click', async () => {
     function startTimer(deadline){
       stopTimer();
       const tick = ()=>{
-        const ms = Math.max(0, deadline - Date.now());
+        const ms = Math.max(0, deadline - (Date.now() + serverOffset));
         const s = Math.ceil(ms/1000); timeLeft.textContent = String(s);
         if(ms<=0) stopTimer();
       };
@@ -698,7 +676,7 @@ nextBtn.addEventListener('click', async () => {
           <div class="small" style="min-width:72px; text-align:right">${n} (${pct}%)</div>
         </div>`;
       }).join('');
-    } }
+    }
   </script>
 </body>
 </html>
