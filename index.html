@@ -693,9 +693,7 @@
         return arr.map(normalizeItem).filter(Boolean);
       }catch(_){ /* fallthrough to CSV */ }
       // CSV fallback (simple, comma-separated, with header)
-      const lines = text.split('
-').map(l => l.endsWith('
-') ? l.slice(0,-1) : l).filter(Boolean);
+   const lines = text.split('\n').map(l => l.endsWith('\r') ? l.slice(0, -1) : l).filter(Boolean);
       if(lines.length < 2) return [];
       const header = lines[0].split(',').map(h=>h.trim().toLowerCase());
       const idx = (k)=> header.indexOf(k);
