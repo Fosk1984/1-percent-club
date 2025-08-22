@@ -200,14 +200,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore-compat.js"></script>
-<script type="module">
+<script>
 'use strict';
 
 /******************** Firebase bootstrap (optional) ********************/
 // 1) Fill your config below. If left as-is, cloud sync stays Off and Local mode works normally.
 const FB_CONFIG = {
- import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-analytics.js";
   // TODO: Add SDKs for Firebase products that you want to use
   // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -229,15 +227,15 @@ const FB_CONFIG = {
 };
 let firebaseReady = false, db = null, myUid = null;
 (function initFirebase(){
-  try{
-    const raw = JSON.stringify(FB_CONFIG||{});
-    if(!raw || /YOUR_API_KEY|YOUR_PROJECT/.test(raw)) throw new Error('Missing Firebase config');
+    try {
     firebase.initializeApp(FB_CONFIG);
-    db = firebase.firestore();
+    const db = firebase.firestore();
     firebase.auth().signInAnonymously();
-    firebase.auth().onAuthStateChanged(u=>{ myUid = u? u.uid : null; });
+    firebase.auth().onAuthStateChanged(u => { myUid = u ? u.uid : null; });
     firebaseReady = true;
-  }catch(e){ firebaseReady = false; }
+  } catch (e) {
+    firebaseReady = false;
+  }
 })();
 
 /******************** Data (questions) ********************/
