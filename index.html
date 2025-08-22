@@ -397,15 +397,29 @@ function endGame(){ setStatus('<b>1% question complete!</b> Congratulate your ch
 // rooms/{CODE}/players/{uid}: { name, passes, active, joinedAt }
 // rooms/{CODE}/answers/{qIdx_uid}: { qIdx, uid, choice, ts }
 function randomCode(){ return Math.random().toString(36).slice(2,8).toUpperCase(); }
-function roomDoc(){ return db.collection('rooms').doc(state.cloud.room); }
+function roomDoc(){
+  if (!db || !state.cloud.room) { throw new Error('Room/DB not ready'); }
+  return db.collection('rooms').doc(state.cloud.room);
+}
+
 function answersCol(){ return roomDoc().collection('answers'); }
 function playersCol(){ return roomDoc().collection('players'); }
 
-async function createRoom(){ if(!firebaseReady) return alert('Cloud sync is off. Add Firebase config first.');
-  const code = randomCode();
-  await db.collection('rooms').doc(code).set({ qIdx:0, revealed:false, createdAt:firebase.firestore.FieldValue.serverTimestamp(), open:true, hostUid: myUid  });
-  state.cloud.room = code; onRoomChanged();
+async function createRoom(){
+  if (!firebaseReady || !db) return false;
+  const code = Math.random().toString(36).slice(2,8).toUpperCase();
+  await db.collection('rooms').doc(code).set({
+    qIdx: 0,
+    revealed: false,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    open: true,
+    hostUid: myUid || null
+  });
+  state.cloud.room = code;
+  onRoomChanged();
+  return true;
 }
+
 async function closeRoom(){ if(!state.cloud.room) return; await roomDoc().update({ open:false }); unsubscribeCloud(); state.cloud.room=null; onRoomChanged(); }
 
 async function joinRoom(code, name){ if(!firebaseReady) return alert('Cloud sync is off.'); if(!code) return alert('Enter a room code');
@@ -492,9 +506,22 @@ soundChip.onclick = ()=>{ state.sound=!state.sound; soundChip.textContent = stat
 addBtn.onclick = ()=> state.mode==='local'? addNamesLocal(nameInput.value) : alert('In Host mode, roster fills from players joining the room.');
 clearRosterBtn.onclick = clearRoster; allPassBtn.onclick = giveAllPass; reviveBtn.onclick = reviveAll;
 
-createRoomBtn.onclick = async()=>{ await createRoom(); subscribeRoom(); paintRoomUi(); };
-closeRoomBtn.onclick = async()=>{ await closeRoom(); paintRoomUi(); };
-copyLinkBtn.onclick = ()=>{ shareLinkEl.select(); document.execCommand('copy'); setStatus('Link copied to clipboard.'); };
+createRoomBtn.onclick = async () => {
+  if (!firebaseReady || !db) { alert('Cloud sync is OFF — check FB_CONFIG and authorised domain.'); return; }
+  const ok = await createRoom();            // make createRoom return true/false
+  if (ok) { subscribeRoom(); paintRoomUi(); }
+};
+
+closeRoomBtn.onclick = async () => {
+  if (!firebaseReady || !db || !state.cloud.room) return;
+  await closeRoom(); paintRoomUi();
+};
+
+copyLinkBtn.onclick = () => {
+  shareLinkEl.select();
+  document.execCommand('copy');
+  setStatus('Link copied to clipboard.');
+};
 
 joinBtn.onclick = async()=>{ await joinRoom(joinCode.value, playerName.value||'Player'); subscribeRoom(); paintRoomUi(); };
 
