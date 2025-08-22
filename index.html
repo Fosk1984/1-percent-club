@@ -472,75 +472,70 @@
     });
 
     // Score: reveal correct & eliminate wrong
-    scoreBtn.addEventListener('click', async ()=>{
-      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
-      const cur = (await get(currentRef)).val();
-      if(cur.phase === 'hidden') return alert('Reveal first');
-      const cIdx = parseInt(correctIndex.value,10);
-      await update(currentRef, { phase:'result', correctIndex: cIdx });
+// Reveal correct, eliminate wrong, and publish stats
+scoreBtn.addEventListener('click', async () => {
+  const code = state.room;
+  const currentRef = ref(db, `rooms/${code}/current`);
+  const curSnap = await get(currentRef);
+  const cur = curSnap.val();
+  if (!cur || cur.phase === 'hidden') { alert('Reveal first'); return; }
 
-      // Fetch answers + players
-      const [ansSnap, playersSnap] = await Promise.all([
-        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
-        get(ref(db,`rooms/${code}/players`))
-      ]);
-      const answers = ansSnap.exists()? ansSnap.val(): {};
-      const players = playersSnap.exists()? playersSnap.val(): {};
+  const cIdx = parseInt(correctIndex.value, 10);
+  await update(currentRef, { phase: 'result', correctIndex: cIdx });
 
-      const updates = {};
-      Object.entries(players).forEach(([uid,p])=>{
-        if(!(p.present && !p.eliminated)) return;
-        const a = answers[uid];
-        const wrongOrMissing = !a || a.index !== cIdx;
-        if(wrongOrMissing){ updates[`rooms/${code}/players/${uid}/eliminated`] = true; }
-      });
-      await update(ref(db), updates);
+  // Fetch answers + players
+  const [ansSnap, playersSnap] = await Promise.all([
+    get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
+    get(ref(db, `rooms/${code}/players`))
+  ]);
 
-      // Aggregate results and publish lightweight stats into current
-      const counts = [0,0,0,0];
-      let total = 0;
-      Object.values(answers).forEach(a=>{ if(a && Number.isInteger(a.index) && a.index>=0 && a.index<=3){ counts[a.index]++; total++; } });
-      await update(currentRef, { stats: { counts: {0:counts[0],1:counts[1],2:counts[2],3:counts[3]}, total } });
-    });
+  const answers = ansSnap.exists() ? ansSnap.val() : {};
+  const players = playersSnap.exists() ? playersSnap.val() : {};
 
-      // Fetch answers + players
-      const [ansSnap, playersSnap] = await Promise.all([
-        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
-        get(ref(db,`rooms/${code}/players`))
-      ]);
-      const answers = ansSnap.exists()? ansSnap.val(): {};
-      const players = playersSnap.exists()? playersSnap.val(): {};
+  // Eliminate wrong / no-answer
+  const updates = {};
+  for (const [uid, p] of Object.entries(players)) {
+    if (!(p.present && !p.eliminated)) continue;
+    const a = answers[uid];
+    const wrongOrMissing = !a || a.index !== cIdx;
+    if (wrongOrMissing) {
+      updates[`rooms/${code}/players/${uid}/eliminated`] = true;
+    }
+  }
+  if (Object.keys(updates).length) {
+    await update(ref(db), updates);
+  }
 
-      const updates = {};
-      let alive = 0, eliminatedCount = 0;
-      Object.entries(players).forEach(([uid, p])=>{ if(p.present && !p.eliminated) alive++; });
-      // eliminate wrong + no-answers
-      Object.entries(players).forEach(([uid,p])=>{
-        if(!(p.present && !p.eliminated)) return;
-        const a = answers[uid];
-        const wrongOrMissing = !a || a.index !== cIdx;
-        if(wrongOrMissing){
-          updates[`rooms/${code}/players/${uid}/eliminated`] = true; eliminatedCount++;
-        }
-      });
-      await update(ref(db), updates);
-    });
+  // Aggregate results and publish lightweight stats
+  const counts = [0, 0, 0, 0];
+  let total = 0;
+  for (const a of Object.values(answers)) {
+    if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) {
+      counts[a.index]++; total++;
+    }
+  }
+  await update(currentRef, {
+    stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total }
+  });
+});
 
-    // Next question (clear current)
-    nextBtn.addEventListener('click', async ()=>{
-      const code = state.room; const meta = (await get(ref(db,`rooms/${code}/meta`))).val();
-      const qid = (meta.qIndex||0) + 1;
-      await update(ref(db,`rooms/${code}/meta`), { qIndex: qid });
-      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null });
-      qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
-      correctIndex.value = '0';
-    });
+// Next question (clear current)
+nextBtn.addEventListener('click', async () => {
+  const code = state.room;
+  const metaSnap = await get(ref(db, `rooms/${code}/meta`));
+  const meta = metaSnap.val() || {};
+  const qid = (meta.qIndex || 0) + 1;
 
-    copyInvite.addEventListener('click', async ()=>{
-      const url = `${location.origin}${location.pathname}?room=${state.room}`;
-      await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
-      copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
-    });
+  await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
+  await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null });
+
+  qPrompt.value = '';
+  opt0.value = '';
+  opt1.value = '';
+  opt2.value = '';
+  opt3.value = '';
+  correctIndex.value = '0';
+});
 
     // ---- Player UI ----
     async function enterPlayer(){
