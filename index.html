@@ -61,7 +61,8 @@
     <h1>🧠 The 1% Club — Multiplayer</h1>
     <div id="landing" class="card">
       <div class="row">
-        <label class="pill"><input type="checkbox" id="isHostToggle">I'm the host</label>
+        <label class="pill"><input type="checkbox" id="isHostToggle"> &nbsp; I'm the host</label>
+        <span class="hint">GitHub Pages + Firebase (Anonymous sign-in). Room code sharing built-in.</span>
       </div>
       <div id="hostLanding" class="grid g2" style="margin-top:8px;">
         <div class="card">
@@ -159,6 +160,23 @@
         </div>
         <div id="livePrompt" class="big" style="margin-top:8px">—</div>
         <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
+        <!-- Host results (histogram) -->
+        <div id="hostResults" style="margin-top:10px"></div>
+      </div>
+
+      <!-- Question bank -->
+      <div class="card">
+        <h2>Question bank</h2>
+        <div class="row" style="margin-bottom:8px">
+          <span class="pill">Loaded: <span id="bankCount">0</span></span>
+          <span class="pill">Next: <span id="bankNext">1</span></span>
+        </div>
+        <textarea id="bankText" placeholder='Paste JSON or CSV with columns: prompt,A,B,C,D,correct,seconds'></textarea>
+        <div class="row" style="margin-top:10px">
+          <button id="importBankBtn">Import JSON/CSV</button>
+          <button id="stageNextBtn" class="btn-acc2">Stage next from bank</button>
+        </div>
+        <div class="hint small">JSON examples: [{"prompt":"…","A":"…","B":"…","C":"…","D":"…","correct":"B","seconds":30}] or {"prompt":"…","options":["A","B","C","D"],"correctIndex":1}</div>
       </div>
     </div>
 
@@ -173,11 +191,86 @@
       <div id="qArea" class="hide">
         <div id="pPrompt" class="big" style="margin:10px 0">—</div>
         <div class="answers" id="answerBtns"></div>
+        <div id="resultsPlayer" style="margin-top:10px"></div>
       </div>
       <div id="eliminated" class="hide center" style="height:160px"><div class="big">❌ You’ve been eliminated</div></div>
     </div>
 
     <div class="card" id="howto">
+      <h2>Setup (one-time)</h2>
+      <ol>
+        <li>Create a Firebase project → enable <b>Anonymous Auth</b> and create a <b>Realtime Database</b> (locked mode).</li>
+        <li>Copy your Firebase <b>web config</b> and paste into <span class="mono">FIREBASE_CONFIG</span> below in the code.</li>
+        <li>Paste these <b>Rules</b> into Realtime Database → Rules tab (you can tighten later):<br>
+<pre class="small" style="white-space:pre-wrap; background:#0c1230; padding:10px; border-radius:12px; border:1px solid var(--edge)">{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      "$code": {
+        "meta": {
+          ".read": "auth != null",
+          ".write": "auth != null && ((!data.exists() && newData.child('hostUid').val() == auth.uid) || (data.exists() && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid))",
+          "hostUid":     { ".validate": "newData.isString()" },
+          "allowJoin":   { ".validate": "newData.isBoolean()" },
+          "playerLimit": { ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 80" },
+          "qIndex":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "createdAt":   { ".validate": "newData.isNumber()" }
+        },
+
+        "current": {
+          ".read":  "auth != null",
+          ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
+          "phase":        { ".validate": "newData.isString() && (newData.val() == 'hidden' || newData.val() == 'revealed' || newData.val() == 'locked' || newData.val() == 'result')" },
+          "qid":          { ".validate": "newData.isNumber() && newData.val() >= 0" },
+          "deadline":     { ".validate": "newData.isNumber()" },
+          "prompt":       { ".validate": "newData.isString() && newData.val().length <= 300" },
+          "correctIndex": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 3" },
+          "choices": {
+            ".validate": "newData.hasChildren(['0','1','2','3'])",
+            "0": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "1": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "2": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "3": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "$other": { ".validate": false }
+          },
+          "stats": {
+            ".validate": "newData.hasChildren(['counts','total']) && newData.child('total').isNumber() && newData.child('counts/0').isNumber() && newData.child('counts/1').isNumber() && newData.child('counts/2').isNumber() && newData.child('counts/3').isNumber()"
+          }
+        },
+
+        "players": {
+          ".read": "auth != null",
+          "$uid": {
+            ".write": "auth != null && $uid == auth.uid",
+            "name":     { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 24" },
+            "present":  { ".validate": "newData.isBoolean()" },
+            "joinedAt": { ".validate": "newData.isNumber()" },
+            "eliminated": {
+              ".write": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
+              ".validate": "newData.isBoolean()"
+            }
+          }
+        },
+
+        "answers": {
+          ".read": "auth != null && root.child('rooms/'+$code+'/meta/hostUid').val() == auth.uid",
+          "$qid": {
+            "$uid": {
+              ".write": "auth != null && auth.uid == $uid && root.child('rooms/'+$code+'/current/phase').val() == 'revealed' && root.child('rooms/'+$code+'/current/deadline').isNumber() && now <= root.child('rooms/'+$code+'/current/deadline').val() + 1500 && !data.exists()",
+              ".validate": "newData.hasChildren(['index','at']) && newData.child('index').isNumber() && newData.child('index').val() >= 0 && newData.child('index').val() <= 3 && newData.child('at').isNumber()"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+</pre>
+        </li>
+        <li>Commit this single <b>index.html</b> file to a GitHub repo → enable GitHub Pages (main branch /root).</li>
+      </ol>
     </div>
   </div>
 
@@ -210,7 +303,7 @@
 
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
-    const state = { uid:null, room:null, host:false, me:null, current:null, timerInt:null };
+    const state = { uid:null, room:null, host:false, me:null, current:null, timerInt:null, bank:[], bankIndex:0, meEliminated:false };
 
     // UI elements
     const landing = els('#landing');
@@ -236,6 +329,7 @@
     const deadlineTxt = els('#deadlineTxt');
     const livePrompt = els('#livePrompt');
     const liveChoices = els('#liveChoices');
+    const hostResults = els('#hostResults');
 
     const qPrompt = els('#qPrompt');
     const opt0 = els('#opt0');
@@ -257,9 +351,17 @@
     const timeLeft = els('#timeLeft');
     const pPrompt = els('#pPrompt');
     const answerBtns = els('#answerBtns');
+    const resultsPlayer = els('#resultsPlayer');
     const qArea = els('#qArea');
     const msg = els('#msg');
     const eliminated = els('#eliminated');
+
+    // Question bank elements (new)
+    const bankText = els('#bankText');
+    const importBankBtn = els('#importBankBtn');
+    const stageNextBtn = els('#stageNextBtn');
+    const bankCount = els('#bankCount');
+    const bankNext = els('#bankNext');
 
     // Helpers
     const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -386,6 +488,30 @@
       const players = playersSnap.exists()? playersSnap.val(): {};
 
       const updates = {};
+      Object.entries(players).forEach(([uid,p])=>{
+        if(!(p.present && !p.eliminated)) return;
+        const a = answers[uid];
+        const wrongOrMissing = !a || a.index !== cIdx;
+        if(wrongOrMissing){ updates[`rooms/${code}/players/${uid}/eliminated`] = true; }
+      });
+      await update(ref(db), updates);
+
+      // Aggregate results and publish lightweight stats into current
+      const counts = [0,0,0,0];
+      let total = 0;
+      Object.values(answers).forEach(a=>{ if(a && Number.isInteger(a.index) && a.index>=0 && a.index<=3){ counts[a.index]++; total++; } });
+      await update(currentRef, { stats: { counts: {0:counts[0],1:counts[1],2:counts[2],3:counts[3]}, total } });
+    });
+
+      // Fetch answers + players
+      const [ansSnap, playersSnap] = await Promise.all([
+        get(ref(db,`rooms/${code}/answers/${cur.qid}`)),
+        get(ref(db,`rooms/${code}/players`))
+      ]);
+      const answers = ansSnap.exists()? ansSnap.val(): {};
+      const players = playersSnap.exists()? playersSnap.val(): {};
+
+      const updates = {};
       let alive = 0, eliminatedCount = 0;
       Object.entries(players).forEach(([uid, p])=>{ if(p.present && !p.eliminated) alive++; });
       // eliminate wrong + no-answers
@@ -444,6 +570,28 @@
         if(cur.choices){ cur.choices.forEach((c,i)=>{
           const div = document.createElement('div'); div.className='tag'; div.textContent = ['A','B','C','D'][i]+': '+c; liveChoices.appendChild(div);
         }); }
+        // Host results
+        if(state.host){
+          const counts = cur.stats && cur.stats.counts ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0] : null;
+          renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
+        }
+        // Player view
+        if(!state.host){
+          statusTxt.textContent = state.meEliminated ? 'spectating' : (cur.phase || '—');
+          if(cur.phase === 'revealed' || cur.phase === 'locked' || cur.phase === 'result'){
+            msg.classList.add('hide'); qArea.classList.remove('hide');
+            pPrompt.textContent = cur.prompt || '—';
+            renderAnswerButtons(cur);
+            if(cur.phase === 'revealed') startTimer(cur.deadline); else stopTimer();
+            // Player results (only on result)
+            const countsP = cur.stats && cur.stats.counts ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0] : null;
+            if(cur.phase === 'result') renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex); else resultsPlayer.innerHTML='';
+            if(cur.phase === 'result') revealCorrect(cur);
+          } else { // hidden or others
+            msg.classList.remove('hide'); qArea.classList.add('hide'); resultsPlayer.innerHTML='';
+          }
+        }
+      }); }
         // Player view
         if(!state.host){
           statusTxt.textContent = cur.phase;
@@ -478,6 +626,12 @@
           });
         } else {
           const me = players[state.uid]||{};
+          state.meEliminated = !!me.eliminated;
+          if(state.meEliminated){ eliminated.classList.remove('hide'); } else { eliminated.classList.add('hide'); }
+        }
+      });
+        } else {
+          const me = players[state.uid]||{};
           if(me.eliminated){ qArea.classList.add('hide'); eliminated.classList.remove('hide'); }
         }
       });
@@ -485,9 +639,15 @@
 
     function renderAnswerButtons(cur){
       answerBtns.innerHTML = '';
+      const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
       ['A','B','C','D'].forEach((letter,i)=>{
         const btn = document.createElement('button'); btn.className='answerBtn';
         btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
+        btn.disabled = !canAnswer;
+        if(canAnswer){ btn.addEventListener('click', ()=> submitAnswer(i)); }
+        answerBtns.appendChild(btn);
+      });
+    }. ${cur.choices?.[i]||''}`;
         btn.addEventListener('click', ()=> submitAnswer(i));
         answerBtns.appendChild(btn);
       });
@@ -524,6 +684,26 @@
       tick(); state.timerInt = setInterval(tick, 200);
     }
     function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
+
+    // ----- Results rendering -----
+    function renderResults(container, countsArr, total, correctIdx){
+      if(!container) return;
+      if(!countsArr){ container.innerHTML=''; return; }
+      const labels = ['A','B','C','D'];
+      const max = Math.max(1, ...countsArr);
+      container.innerHTML = countsArr.map((n,i)=>{
+        const pct = total? Math.round(n*100/total) : 0;
+        const barW = Math.max(5, Math.round((n/max)*100));
+        const strong = (i===Number(correctIdx)) ? 'font-weight:700;' : '';
+        return `<div class="row" style="gap:8px; align-items:center">
+          <div class="tag" style="min-width:2rem; ${strong}">${labels[i]}</div>
+          <div style="flex:1; border:1px solid var(--edge); border-radius:999px; overflow:hidden">
+            <div style="height:12px; width:${barW}%; background:#1f2a55"></div>
+          </div>
+          <div class="small" style="min-width:72px; text-align:right">${n} (${pct}%)</div>
+        </div>`;
+      }).join('');
+    } }
   </script>
 </body>
 </html>
