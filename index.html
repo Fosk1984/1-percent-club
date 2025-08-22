@@ -339,7 +339,41 @@ function roomDoc(){ if(!db||!state.cloud.room) throw new Error('Room/DB not read
 function answersCol(){ return roomDoc().collection('answers'); }
 function playersCol(){ return roomDoc().collection('players'); }
 
-async function createRoom(){ if(!firebaseReady||!db) return false; const code=randomCode(); await db.collection('rooms').doc(code).set({ qIdx:0, revealed:false, createdAt:firebase.firestore.FieldValue.serverTimestamp(), open:true, hostUid: myUid||null }); state.cloud.room=code; onRoomChanged(); return true; }
+// Ensure we have an anonymous auth UID before writes
+async function ensureAuth(timeout=5000){
+  if(!firebaseReady) throw new Error('Firebase not ready');
+  if(firebase.auth().currentUser){ myUid = firebase.auth().currentUser.uid; return myUid; }
+  return await new Promise((resolve, reject)=>{
+    const start = Date.now();
+    const off = firebase.auth().onAuthStateChanged(u=>{ if(u){ myUid=u.uid; off(); resolve(myUid); } });
+    const t = setInterval(()=>{
+      if(firebase.auth().currentUser){ clearInterval(t); off(); resolve(firebase.auth().currentUser.uid); }
+      if(Date.now()-start>timeout){ clearInterval(t); off(); reject(new Error('Auth timeout')); }
+    }, 100);
+  });
+}
+
+async function createRoom(){
+  if(!firebaseReady||!db){ alert('Cloud sync is OFF — check FB_CONFIG and authorised domain.'); return false; }
+  try{
+    await ensureAuth();
+    const code = randomCode();
+    await db.collection('rooms').doc(code).set({
+      qIdx:0,
+      revealed:false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      open:true,
+      hostUid: myUid
+    });
+    state.cloud.room = code;
+    onRoomChanged();
+    return true;
+  }catch(e){
+    console.error('Create room failed:', e);
+    alert('Could not create room: '+(e.message||e));
+    return false;
+  }
+}
 async function closeRoom(){ if(!state.cloud.room) return; await roomDoc().update({ open:false }); unsubscribeCloud(); state.cloud.room=null; onRoomChanged(); }
 async function joinRoom(code,name){ if(!firebaseReady) return alert('Cloud sync is off.'); if(!code) return alert('Enter a room code'); state.cloud.room=code.toUpperCase(); onRoomChanged(); await playersCol().doc(myUid||'anon').set({ name:name||'Player', passes:3, active:true, joinedAt:firebase.firestore.FieldValue.serverTimestamp() },{merge:true}); }
 
