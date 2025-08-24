@@ -223,7 +223,7 @@
       </div>
       <div id="eliminated" class="hide center" style="height:160px"><div class="big">❌ You’ve been eliminated</div></div>
 
-      <!-- NEW: Player roster -->
+      <!-- Player roster -->
       <div class="card" style="margin-top:10px">
         <h2>Players</h2>
         <div id="playersListPlayer" class="list"></div>
@@ -251,6 +251,7 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
+    // Keep client aligned to server time for deadlines
     let serverOffset = 0;
     onValue(ref(db, '.info/serverTimeOffset'), (snap)=> { serverOffset = snap.val() || 0; });
 
@@ -258,9 +259,7 @@
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
 
     const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)].join?'':null) || Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
-    // (fallback in case older Safari trips): 
-    function safeGenCode(len=6){ return Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join(''); }
+    const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
 
     // progressAbs drives the ladder; bankIndex is just the staging cursor
     const state = {
@@ -453,7 +452,7 @@
 
     // Create room
     createRoomBtn.addEventListener('click', async ()=>{
-      const code = (hostRoomCode.value || safeGenCode()).toUpperCase();
+      const code = (hostRoomCode.value || genCode()).toUpperCase();
       const limit = Math.min(80, Math.max(2, parseInt(playerLimitEl.value||"80",10)));
       const roomRef = ref(db, `rooms/${code}`);
       await set(child(roomRef,'meta'), {
@@ -534,7 +533,7 @@
       phaseTxt.textContent = 'hidden';
     });
 
-    // Reveal — percent derived from absolute progress unless bank overrides
+    // Reveal — percent derived from absolute progress unless bank overrides; also advance ladder here
     revealBtn.addEventListener('click', async ()=>{
       try{
         if(!qPrompt.value.trim()) return alert('Enter a question');
@@ -546,11 +545,19 @@
         const qid  = await ensureArmedQuestion(db, code);
 
         const currentRef = ref(db,`rooms/${code}/current`);
-        const deadline   = Date.now() + serverOffset + secs*1000;
+        const nowMs     = Date.now() + serverOffset;
+        const deadline  = nowMs + secs*1000;
+
+        let absIndexForThisReveal;
+        if (typeof state.stagedIndex === 'number') {
+          absIndexForThisReveal = state.stagedIndex;
+        } else {
+          absIndexForThisReveal = state.progressAbs;
+        }
 
         const p = (typeof state.stagedPercent === 'number')
           ? state.stagedPercent
-          : percentForAbsoluteIndex(state.progressAbs);
+          : percentForAbsoluteIndex(absIndexForThisReveal);
 
         const payload = {
           phase: 'revealed',
@@ -562,6 +569,11 @@
         };
 
         await set(currentRef, payload);
+
+        // Advance ladder progress on Reveal (the reliable moment a question goes live)
+        state.progressAbs = Math.min(absIndexForThisReveal + 1, Math.max(0, state.bank.length));
+        syncLadderToProgress();
+
         console.log('[reveal] published', payload);
       }catch(err){
         console.error('[reveal] failed:', err);
@@ -613,7 +625,7 @@
       await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
     });
 
-    // Next (advance ladder progress)
+    // Next — only arms the next slot & clears UI (ladder moves on Reveal now)
     nextBtn.addEventListener('click', async () => {
       const code = state.room;
       const metaSnap = await get(ref(db, `rooms/${code}/meta`));
@@ -627,9 +639,7 @@
       correctIndex.value = '0';
       state.stagedPercent = undefined;
       state.stagedIndex = undefined;
-
-      state.progressAbs = Math.min(state.progressAbs + 1, Math.max(0, state.bank.length));
-      syncLadderToProgress();
+      // (Do not advance progressAbs here; Reveal will do it)
     });
 
     // Copy invite
@@ -767,16 +777,25 @@
       });
     }
 
+    // Client-side guard against late clicks; clearer error handling
     async function submitAnswer(index){
       const code = state.room; const cur = state.current;
       if (!cur || cur.phase!=='revealed') return;
+      const nowMs = Date.now() + serverOffset;
+      if (typeof cur.deadline === 'number' && nowMs > cur.deadline) {
+        alert('Too late — time’s up!');
+        return;
+      }
       const uid = auth.currentUser?.uid || state.uid;
       if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
       const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
       try{
-        await set(ansRef, { index, at: Date.now() + serverOffset });
+        await set(ansRef, { index, at: nowMs });
         $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
-      }catch(err){ alert('Answer not accepted (maybe time is up).'); console.error(err); }
+      }catch(err){
+        alert('Answer not accepted — timer likely expired.');
+        console.error(err);
+      }
     }
 
     function revealCorrect(cur){
