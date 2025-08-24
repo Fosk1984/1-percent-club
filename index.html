@@ -54,6 +54,20 @@
     .center{display:flex; align-items:center; justify-content:center}
     .big{font-size:clamp(28px,4vw,44px); font-weight:700}
     .hide{display:none !important}
+
+    /* ===== Percent Ladder (scoped) ===== */
+    .percent-ladder{--card:#12172a;--ink:#eaf0ff;--muted:#9aa4bf;--acc:#6ac2ff;--ok:#33d17a;--chk:#ffd36a;
+      display:flex;flex-direction:column;gap:.35rem;background:var(--card);padding:.75rem;border-radius:.75rem;border:1px solid #22305f;}
+    .percent-ladder .hdr{color:var(--muted);font:600 12px/1.2 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;letter-spacing:.04em;text-transform:uppercase;margin-bottom:.25rem}
+    .pl-steps{display:flex;flex-direction:column-reverse;gap:.25rem}
+    .pl-step{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:.5rem;border:1px solid #24336a;
+      color:var(--ink);background:linear-gradient(180deg,#151c36,#12172a);cursor:pointer;position:relative;user-select:none;outline:none}
+    .pl-step[data-cleared="true"]{background:linear-gradient(180deg,#122a1c,#0f1f18);border-color:#1f5137}
+    .pl-step[data-cleared="true"] .tag{color:var(--ok)}
+    .pl-step[data-current="true"]{box-shadow:0 0 0 2px var(--acc) inset, 0 8px 30px rgba(106,194,255,.25)}
+    .pl-step[data-checkpoint="true"]::after{content:"";position:absolute;right:10px;top:50%;transform:translateY(-50%);width:.55rem;height:.55rem;border-radius:50%;background:var(--acc2);box-shadow:0 0 8px rgba(255,211,106,.8)}
+    .pct{font:600 14px/1 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .tag{margin-left:auto;font:500 11px/1 ui-sans-serif,system-ui;letter-spacing:.03em;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -152,16 +166,30 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2>Live question</h2>
-        <div class="row">
-          <div class="pill">Phase: <span id="phaseTxt">—</span></div>
-          <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
+      <div class="grid g2">
+        <div class="card">
+          <h2>Live question</h2>
+          <div class="row">
+            <div class="pill">Phase: <span id="phaseTxt">—</span></div>
+            <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
+          </div>
+          <div id="livePrompt" class="big" style="margin-top:8px">—</div>
+          <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
+          <!-- Host results (histogram) -->
+          <div id="hostResults" style="margin-top:10px"></div>
         </div>
-        <div id="livePrompt" class="big" style="margin-top:8px">—</div>
-        <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
-        <!-- Host results (histogram) -->
-        <div id="hostResults" style="margin-top:10px"></div>
+
+        <!-- NEW: Percent Ladder panel -->
+        <div class="card">
+          <h2>Percent Ladder</h2>
+          <div id="ladder" class="percent-ladder" role="group" aria-label="Percent ladder">
+            <div class="hdr">This 10‑Q chunk</div>
+            <div class="pl-steps" aria-live="polite"></div>
+          </div>
+          <div class="hint small" style="margin-top:8px">
+            Uses <code>percent</code> from your bank (if present). Otherwise maps chunk index to [90,80,…,1].
+          </div>
+        </div>
       </div>
 
       <!-- Question bank -->
@@ -171,12 +199,12 @@
           <span class="pill">Loaded: <span id="bankCount">0</span></span>
           <span class="pill">Next: <span id="bankNext">1</span></span>
         </div>
-        <textarea id="bankText" placeholder='Paste JSON or CSV with columns: prompt,A,B,C,D,correct,seconds'></textarea>
+        <textarea id="bankText" placeholder='Paste JSON or CSV with columns: prompt,A,B,C,D,correct,seconds,percent'></textarea>
         <div class="row" style="margin-top:10px">
           <button id="importBankBtn">Import JSON/CSV</button>
           <button id="stageNextBtn" class="btn-acc2">Stage next from bank</button>
         </div>
-        <div class="hint small">JSON examples: [{"prompt":"…","A":"…","B":"…","C":"…","D":"…","correct":"B","seconds":30}] or {"prompt":"…","options":["A","B","C","D"],"correctIndex":1}</div>
+        <div class="hint small">JSON examples: [{"prompt":"…","A":"…","B":"…","C":"…","D":"…","correct":"B","seconds":30,"percent":90}] or {"prompt":"…","options":["A","B","C","D"],"correctIndex":1,"percent":90}</div>
       </div>
     </div>
 
@@ -282,7 +310,75 @@
     const bankCount = els('#bankCount');
     const bankNext = els('#bankNext');
 
-    // Helpers
+    // ===== Percent Ladder elements & logic =====
+    class PercentLadder {
+      constructor(selectorOrEl, {steps=[], currentIndex=0, cleared=[], checkpoints=[]}={}){
+        this.el = typeof selectorOrEl==='string' ? document.querySelector(selectorOrEl) : selectorOrEl;
+        this.steps = steps.slice();
+        this.currentIndex = currentIndex|0;
+        this.cleared = new Set(cleared||[]);
+        this.checkpoints = new Set(checkpoints||[]);
+        this._stepsRoot = this.el.querySelector('.pl-steps');
+        this.render();
+        this._attach();
+      }
+      _attach(){
+        this._stepsRoot.addEventListener('click', (e)=>{
+          const item = e.target.closest('.pl-step');
+          if(!item) return;
+          const idx = +item.dataset.index;
+          this.setCurrent(idx);
+          this.el.dispatchEvent(new CustomEvent('ladder-select',{detail:{index:idx, percent:this.steps[idx]}}));
+        });
+      }
+      render(){
+        const frag = document.createDocumentFragment();
+        this._stepsRoot.innerHTML='';
+        this.steps.forEach((pct, idx)=>{
+          const step = document.createElement('button');
+          step.type='button';
+          step.className='pl-step';
+          step.dataset.index=idx;
+          step.dataset.current = (idx===this.currentIndex);
+          step.dataset.cleared = this.cleared.has(idx);
+          step.dataset.checkpoint = this.checkpoints.has(idx);
+          step.setAttribute('aria-pressed', idx===this.currentIndex ? 'true':'false');
+          step.setAttribute('aria-label', `${pct}% step`);
+          step.innerHTML = `
+            <span class="pct">${pct}%</span>
+            <span class="tag">${idx===this.currentIndex?'Current':(this.cleared.has(idx)?'Cleared':'')}</span>
+          `;
+          frag.appendChild(step);
+        });
+        this._stepsRoot.appendChild(frag);
+      }
+      setSteps(steps){ this.steps = steps.slice(); this.currentIndex = Math.min(this.currentIndex, this.steps.length-1); this.render(); }
+      setCurrent(i){
+        this.currentIndex = i;
+        [...this._stepsRoot.children].forEach(btn=>{
+          const isCur = +btn.dataset.index===i;
+          btn.dataset.current = isCur;
+          btn.setAttribute('aria-pressed', isCur ? 'true':'false');
+          btn.querySelector('.tag').textContent = isCur ? 'Current' : (btn.dataset.cleared==='true' ? 'Cleared' : '');
+        });
+      }
+      setCleared(indices){
+        this.cleared = new Set(indices||[]);
+        [...this._stepsRoot.children].forEach(btn=>{
+          const isCleared = this.cleared.has(+btn.dataset.index);
+          btn.dataset.cleared = isCleared;
+          if(!isCleared && btn.dataset.current!=='true') btn.querySelector('.tag').textContent='';
+          if(isCleared && btn.dataset.current!=='true') btn.querySelector('.tag').textContent='Cleared';
+        });
+      }
+      setCheckpoints(indices){
+        this.checkpoints = new Set(indices||[]);
+        [...this._stepsRoot.children].forEach(btn=>{
+          btn.dataset.checkpoint = this.checkpoints.has(+btn.dataset.index);
+        });
+      }
+    }
+
     const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
 
@@ -604,91 +700,159 @@
       }).join('');
     }
 
-// ---- Question bank: import and stage ----
-function parseBank(text){
-  text = (text || '').trim();
-  if (!text) return [];
+    // ======== Question bank: import and stage + LADDER WIRING ========
+    function parseBank(text){
+      text = (text || '').trim();
+      if (!text) return [];
 
-  // Try JSON first
-  try {
-    const data = JSON.parse(text);
-    const arr = Array.isArray(data) ? data : [data];
-    return arr.map(normalizeItem).filter(Boolean);
-  } catch (_) {
-    // fall through to CSV
-  }
+      // Try JSON first
+      try {
+        const data = JSON.parse(text);
+        const arr = Array.isArray(data) ? data : [data];
+        return arr.map(normalizeItem).filter(Boolean);
+      } catch (_) {
+        // fall through to CSV
+      }
 
-  // CSV fallback (header: prompt,A,B,C,D,correct,seconds)
-  const lines = text
-    .split('\n')
-    .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l))
-    .filter(Boolean);
+      // CSV fallback (header: prompt,A,B,C,D,correct,seconds,percent)
+      const lines = text
+        .split('\n')
+        .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l))
+        .filter(Boolean);
 
-  if (lines.length < 2) return [];
+      if (lines.length < 2) return [];
 
-  const header = lines[0].split(',').map(h => h.trim().toLowerCase());
-  const idx = k => header.indexOf(k);
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const idx = k => header.indexOf(k);
 
-  const out = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',');
-    const item = {
-      prompt:  cols[idx('prompt')]?.trim(),
-      A:       cols[idx('a')]?.trim(),
-      B:       cols[idx('b')]?.trim(),
-      C:       cols[idx('c')]?.trim(),
-      D:       cols[idx('d')]?.trim(),
-      correct: cols[idx('correct')]?.trim(),
-      seconds: Number(cols[idx('seconds')] || 30),
-    };
-    const norm = normalizeItem(item);
-    if (norm) out.push(norm);
-  }
-  return out;
-}
+      const out = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const item = {
+          prompt:  cols[idx('prompt')]?.trim(),
+          A:       cols[idx('a')]?.trim(),
+          B:       cols[idx('b')]?.trim(),
+          C:       cols[idx('c')]?.trim(),
+          D:       cols[idx('d')]?.trim(),
+          correct: cols[idx('correct')]?.trim(),
+          seconds: Number(cols[idx('seconds')] || 30),
+          percent: Number(cols[idx('percent')] || NaN)
+        };
+        const norm = normalizeItem(item);
+        if (norm) out.push(norm);
+      }
+      return out;
+    }
 
-function normalizeItem(raw){
-  if (!raw) return null;
-  const prompt = raw.prompt || raw.question || '';
-  let options = raw.options || [raw.A, raw.B, raw.C, raw.D];
-  if (!Array.isArray(options) || options.length < 4) return null;
-  options = options.slice(0, 4);
+    function normalizeItem(raw){
+      if (!raw) return null;
+      const prompt = raw.prompt || raw.question || '';
+      let options = raw.options || [raw.A, raw.B, raw.C, raw.D];
+      if (!Array.isArray(options) || options.length < 4) return null;
+      options = options.slice(0, 4);
 
-  let correctIndex = (typeof raw.correctIndex === 'number') ? raw.correctIndex : null;
-  if (correctIndex == null && typeof raw.correct === 'string') {
-    const map = { A:0, B:1, C:2, D:3 };
-    correctIndex = map[(raw.correct || '').toUpperCase()];
-  }
+      let correctIndex = (typeof raw.correctIndex === 'number') ? raw.correctIndex : null;
+      if (correctIndex == null && typeof raw.correct === 'string') {
+        const map = { A:0, B:1, C:2, D:3 };
+        correctIndex = map[(raw.correct || '').toUpperCase()];
+      }
+      const seconds = Number(raw.seconds || 30);
 
-  const seconds = Number(raw.seconds || 30);
-  if (!(Number.isInteger(correctIndex) && correctIndex >= 0 && correctIndex <= 3)) return null;
+      // Optional percent
+      let percent = Number(raw.percent);
+      if (!Number.isFinite(percent)) percent = undefined;
 
-  return { prompt, options, correctIndex, seconds };
-}
+      if (!(Number.isInteger(correctIndex) && correctIndex >= 0 && correctIndex <= 3)) return null;
+      return { prompt, options, correctIndex, seconds, ...(percent!=null ? {percent}: {}) };
+    }
 
-// Buttons
-importBankBtn.addEventListener('click', ()=>{
-  const arr = parseBank(bankText.value);
-  state.bank = arr; state.bankIndex = 0;
-  bankCount.textContent = String(arr.length);
-  bankNext.textContent = String(arr.length ? 1 : 0);
-  alert(arr.length ? `Loaded ${arr.length} questions` : 'No valid questions found');
-});
+    // ===== Ladder helpers =====
+    const ladder = new PercentLadder('#ladder', {
+      steps: [90,80,70,60,50,40,30,20,10,1],
+      currentIndex: 0,
+      cleared: [],
+      checkpoints: [4,7] // 50% & 20% examples
+    });
 
-stageNextBtn.addEventListener('click', ()=>{
-  const i = state.bankIndex;
-  if (!state.bank.length || i >= state.bank.length) { alert('Bank empty or finished'); return; }
-  const item = state.bank[i];
-  qPrompt.value = item.prompt;
-  opt0.value = item.options[0] || '';
-  opt1.value = item.options[1] || '';
-  opt2.value = item.options[2] || '';
-  opt3.value = item.options[3] || '';
-  correctIndex.value = String(item.correctIndex || 0);
-  answerWindow.value = String(item.seconds || 30);
-  state.bankIndex++;
-  bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
-});
+    // Compute 10‑Q chunk start based on current bankIndex
+    function chunkStartIndex(i){ return Math.floor(i/10)*10; }
+
+    function buildStepsForChunk(start){
+      const defaultLadder = [90,80,70,60,50,40,30,20,10,1];
+      const steps = defaultLadder.slice();
+      for (let k=0;k<10;k++){
+        const item = state.bank[start+k];
+        if (item && Number.isFinite(item.percent)) steps[k] = item.percent;
+      }
+      return steps;
+    }
+
+    function initLadderChunk(){
+      const start = chunkStartIndex(state.bankIndex);
+      const steps = buildStepsForChunk(start);
+      ladder.setSteps(steps);
+      ladder.setCleared(Array.from({length: state.bankIndex - start}, (_,i)=>i));
+      ladder.setCurrent(state.bankIndex - start);
+    }
+
+    function rebuildLadderForChunkIfNeeded(prevIndex){
+      const prevChunk = chunkStartIndex(prevIndex);
+      const nowChunk = chunkStartIndex(state.bankIndex);
+      if (prevChunk !== nowChunk){
+        // New chunk → rebuild steps and reset cleared
+        initLadderChunk();
+      } else {
+        // Same chunk → just advance
+        advanceLadder();
+      }
+    }
+
+    function advanceLadder(){
+      const start = chunkStartIndex(state.bankIndex);
+      ladder.setCurrent(state.bankIndex - start);
+      ladder.setCleared(Array.from({length: state.bankIndex - start}, (_,i)=>i));
+    }
+
+    // Allow host to jump by clicking ladder
+    document.getElementById('ladder').addEventListener('ladder-select', (e)=>{
+      const start = chunkStartIndex(state.bankIndex);
+      const idxWithin = e.detail.index;
+      const absIndex = start + idxWithin;
+      if (absIndex < state.bank.length){
+        state.bankIndex = absIndex;
+        bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
+        // No need to rebuild chunk; just move cursor
+        advanceLadder();
+      }
+    });
+
+    // Buttons
+    importBankBtn.addEventListener('click', ()=>{
+      const arr = parseBank(bankText.value);
+      state.bank = arr; state.bankIndex = 0;
+      bankCount.textContent = String(arr.length);
+      bankNext.textContent = String(arr.length ? 1 : 0);
+      initLadderChunk();
+      alert(arr.length ? `Loaded ${arr.length} questions` : 'No valid questions found');
+    });
+
+    stageNextBtn.addEventListener('click', ()=>{
+      const i = state.bankIndex;
+      if (!state.bank.length || i >= state.bank.length) { alert('Bank empty or finished'); return; }
+      const item = state.bank[i];
+      qPrompt.value = item.prompt;
+      opt0.value = item.options[0] || '';
+      opt1.value = item.options[1] || '';
+      opt2.value = item.options[2] || '';
+      opt3.value = item.options[3] || '';
+      correctIndex.value = String(item.correctIndex || 0);
+      answerWindow.value = String(item.seconds || 30);
+
+      const prev = state.bankIndex;
+      state.bankIndex++;
+      bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
+      rebuildLadderForChunkIfNeeded(prev);
+    });
 
   </script>
 </body>
