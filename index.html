@@ -183,7 +183,7 @@
         <div class="card">
           <h2>Percent Ladder</h2>
           <div id="ladder" class="percent-ladder" role="group" aria-label="Percent ladder">
-            <div class="hdr">This 10‑Q chunk</div>
+            <div class="hdr">This 10-Q chunk</div>
             <div class="pl-steps" aria-live="polite"></div>
           </div>
           <div class="hint small" style="margin-top:8px">
@@ -219,6 +219,9 @@
         <div id="pPrompt" class="big" style="margin:10px 0">—</div>
         <div class="muted" id="pPercent" style="margin:-6px 0 8px"> </div>
         <div class="answers" id="answerBtns"></div>
+        <div class="row" style="margin-top:8px">
+          <button id="lockAnswerBtn" class="btn-acc" disabled>Lock answer</button>
+        </div>
         <div id="resultsPlayer" style="margin-top:10px"></div>
       </div>
       <div id="eliminated" class="hide center" style="height:160px"><div class="big">❌ You’ve been eliminated</div></div>
@@ -319,6 +322,7 @@
     const qArea = els('#qArea');
     const msg = els('#msg');
     const eliminated = els('#eliminated');
+    const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
     // Question bank elements
     const bankText = els('#bankText');
@@ -498,6 +502,7 @@
       hostUI.classList.remove('hide');
       roomCodeHost.textContent = state.room;
       wireRoomListeners();
+      listenForAutoScore();        // auto-score watcher
       syncLadderToProgress(); // keep ladder in sync from the start
     }
     function enterPlayer(){
@@ -581,19 +586,19 @@
       }
     });
 
-    // Lock
+    // Lock (manual)
     lockBtn.addEventListener('click', async ()=>{
       const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
       await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
     });
 
-    // Score
-    scoreBtn.addEventListener('click', async () => {
+    // ===== Scoring (refactored) =====
+    async function scoreRound(){
       const code = state.room;
       const currentRef = ref(db, `rooms/${code}/current`);
       const curSnap = await get(currentRef);
       const cur = curSnap.val();
-      if (!cur || cur.phase === 'hidden') { alert('Reveal first'); return; }
+      if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
 
       const cIdx = parseInt(correctIndex.value, 10);
       await update(currentRef, { phase: 'result', correctIndex: cIdx });
@@ -623,7 +628,10 @@
         if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
       }
       await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
-    });
+    }
+
+    // Score button uses the shared function
+    scoreBtn.addEventListener('click', scoreRound);
 
     // Next — only arms the next slot & clears UI (ladder moves on Reveal now)
     nextBtn.addEventListener('click', async () => {
@@ -648,6 +656,62 @@
       await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
       copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
     });
+
+    // ===== Auto-score when everyone locked =====
+    let locksUnsub = null;
+
+    function listenForAutoScore(){
+      if (!state.host) return;
+      const code = state.room; if (!code) return;
+
+      onValue(ref(db, `rooms/${code}/current`), (snap) => {
+        const cur = snap.val() || {};
+        // Clean previous listener
+        if (locksUnsub) { locksUnsub(); locksUnsub = null; }
+
+        if (cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
+          const locksRef = ref(db, `rooms/${code}/locks/${cur.qid}`);
+          const playersRef = ref(db, `rooms/${code}/players`);
+
+          const locksHandler = () => maybeAutoScore(cur);
+          const playersHandler = () => maybeAutoScore(cur);
+
+          const offLocks = onValue(locksRef, locksHandler);
+          const offPlayers = onValue(playersRef, playersHandler);
+
+          locksUnsub = () => { offLocks(); offPlayers(); };
+        }
+      });
+    }
+
+    async function maybeAutoScore(curFromArg){
+      const code = state.room;
+      const [curSnap, playersSnap, locksSnap] = await Promise.all([
+        get(ref(db, `rooms/${code}/current`)),
+        get(ref(db, `rooms/${code}/players`)),
+        get(ref(db, `rooms/${code}/locks/${curFromArg.qid}`))
+      ]);
+
+      const cur = curSnap.val() || {};
+      if (cur.phase !== 'revealed') return; // already moved on
+
+      const players = playersSnap.exists() ? playersSnap.val() : {};
+      const aliveUids = Object.entries(players)
+        .filter(([,p]) => p.present && !p.eliminated)
+        .map(([uid]) => uid);
+
+      const locks = locksSnap.exists() ? locksSnap.val() : {};
+      const lockCount = aliveUids.filter(uid => locks[uid] === true).length;
+
+      if (aliveUids.length === 0 || lockCount >= aliveUids.length) {
+        // CAS guard: only if still in 'revealed'
+        const phaseRef = ref(db, `rooms/${code}/current/phase`);
+        const phaseNow = (await get(phaseRef)).val();
+        if (phaseNow === 'revealed') {
+          await scoreRound();
+        }
+      }
+    }
 
     // Room listeners
     function wireRoomListeners(){
@@ -694,7 +758,7 @@
             qArea.classList.remove('hide');
             pPrompt.textContent = cur.prompt || '—';
             renderAnswerButtons(cur);
-            if (cur.phase === 'revealed') startTimer(cur.deadline); else stopTimer();
+            if (cur.phase === 'revealed') { startTimer(cur.deadline); } else { stopTimer(); }
 
             const countsP = cur.stats && cur.stats.counts
               ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
@@ -709,6 +773,11 @@
             msg.classList.remove('hide');
             qArea.classList.add('hide');
             resultsPlayer.innerHTML = '';
+          }
+
+          // Player lock button state
+          if (lockAnswerBtn) {
+            lockAnswerBtn.disabled = (cur.phase !== 'revealed');
           }
         }
       });
@@ -775,6 +844,9 @@
         if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
         answerBtns.appendChild(btn);
       });
+      if (lockAnswerBtn) {
+        lockAnswerBtn.disabled = true; // re-disable until they answer
+      }
     }
 
     // Client-side guard against late clicks; clearer error handling
@@ -792,11 +864,30 @@
       try{
         await set(ansRef, { index, at: nowMs });
         $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
+        if (lockAnswerBtn) lockAnswerBtn.disabled = false; // allow locking now
       }catch(err){
         alert('Answer not accepted — timer likely expired.');
         console.error(err);
       }
     }
+
+    async function lockMyAnswer(){
+      const code = state.room;
+      const cur  = state.current;
+      const uid  = auth.currentUser?.uid || state.uid;
+
+      if (!cur || cur.phase !== 'revealed' || !uid) return;
+      const lockRef = ref(db, `rooms/${code}/locks/${cur.qid}/${uid}`);
+      try{
+        await set(lockRef, true);
+        if (lockAnswerBtn) lockAnswerBtn.disabled = true;
+      }catch(e){
+        console.error('Lock failed', e);
+        alert('Could not lock answer (maybe time is up?).');
+      }
+    }
+
+    if (lockAnswerBtn) lockAnswerBtn.addEventListener('click', lockMyAnswer);
 
     function revealCorrect(cur){
       if (cur.correctIndex == null) return;
