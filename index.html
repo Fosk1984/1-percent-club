@@ -172,7 +172,7 @@
           <div class="row">
             <div class="pill">Phase: <span id="phaseTxt">—</span></div>
             <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
-          <div class="pill">Percent: <span id="percentTxt">—</span></div>
+            <div class="pill">Percent: <span id="percentTxt">—</span></div>
           </div>
           <div id="livePrompt" class="big" style="margin-top:8px">—</div>
           <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
@@ -218,7 +218,7 @@
       </div>
       <div id="msg" class="muted" style="margin-top:6px">Waiting for host…</div>
       <div id="qArea" class="hide">
-       <div id="pPrompt" class="big" style="margin:10px 0">—</div>
+        <div id="pPrompt" class="big" style="margin:10px 0">—</div>
         <div class="muted" id="pPercent" style="margin:-6px 0 8px"> </div>
         <div class="answers" id="answerBtns"></div>
         <div id="resultsPlayer" style="margin-top:10px"></div>
@@ -255,7 +255,9 @@
 
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
-    const state = { uid:null, room:null, host:false, me:null, current:null, timerInt:null, bank:[], bankIndex:0, meEliminated:false };
+
+    // >>> added progressAbs
+    const state = { uid:null, room:null, host:false, me:null, current:null, timerInt:null, bank:[], bankIndex:0, meEliminated:false, progressAbs:0 };
 
     // UI elements
     const landing = els('#landing');
@@ -295,7 +297,7 @@
 
     const playerUI = els('#playerUI');
     const roomCodePlayer = els('#roomCodePlayer');
-    const meName = els('#meName');
+    const meName = els('#meName']);
     const statusTxt = els('#statusTxt');
     const timeLeft = els('#timeLeft');
     const pPrompt = els('#pPrompt');
@@ -313,8 +315,7 @@
     const bankNext = els('#bankNext');
     const percentTxt = els('#percentTxt');
 
-
-    // ===== Percent Ladder elements & logic =====
+    // ===== Percent Ladder component =====
     class PercentLadder {
       constructor(selectorOrEl, {steps=[], currentIndex=0, cleared=[], checkpoints=[]}={}){
         this.el = typeof selectorOrEl==='string' ? document.querySelector(selectorOrEl) : selectorOrEl;
@@ -464,33 +465,32 @@
       phaseTxt.textContent = 'hidden';
     });
 
-    // Reveal question & start timer
-   revealBtn.addEventListener('click', async ()=>{
-  if(!qPrompt.value.trim()) return alert('Enter a question');
-  const choices = [opt0.value, opt1.value, opt2.value, opt3.value];
-  if(choices.some(c=>!c || !c.trim())) return alert('Enter all 4 choices');
+    // Reveal question & start timer (also publish percent)
+    revealBtn.addEventListener('click', async ()=>{
+      if(!qPrompt.value.trim()) return alert('Enter a question');
+      const choices = [opt0.value, opt1.value, opt2.value, opt3.value];
+      if(choices.some(c=>!c || !c.trim())) return alert('Enter all 4 choices');
 
-  const secs = parseInt(answerWindow.value,10);
-  const code = state.room; 
-  const currentRef = ref(db,`rooms/${code}/current`);
-  const deadline = Date.now() + serverOffset + secs*1000;
+      const secs = parseInt(answerWindow.value,10);
+      const code = state.room; 
+      const currentRef = ref(db,`rooms/${code}/current`);
+      const deadline = Date.now() + serverOffset + secs*1000;
 
-  // ⬇️ use staged percent if we have it; otherwise take current ladder step (or 90 fallback)
-  const p = (typeof state.stagedPercent === 'number')
-    ? state.stagedPercent
-    : (ladder?.steps?.[ladder?.currentIndex ?? 0] ?? 90);
+      // use staged percent if we have it; otherwise take current ladder step (or 90 fallback)
+      const p = (typeof state.stagedPercent === 'number')
+        ? state.stagedPercent
+        : (ladder?.steps?.[ladder?.currentIndex ?? 0] ?? 90);
 
-  await update(currentRef, { 
-    phase:'revealed', 
-    prompt:qPrompt.value.trim(), 
-    choices, 
-    deadline,
-    percent: p        // ⬅️ NEW: publish percent for this question
-  });
-});
+      await update(currentRef, { 
+        phase:'revealed', 
+        prompt:qPrompt.value.trim(), 
+        choices, 
+        deadline,
+        percent: p
+      });
+    });
 
-
-    // Lock answers now (forces deadline to now)
+    // Lock answers now
     lockBtn.addEventListener('click', async ()=>{
       const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
       await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
@@ -537,7 +537,7 @@
       await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
     });
 
-    // Next question (clear current)
+    // >>> NEXT: advance visual ladder via progressAbs
     nextBtn.addEventListener('click', async () => {
       const code = state.room;
       const metaSnap = await get(ref(db, `rooms/${code}/meta`));
@@ -551,6 +551,10 @@
       correctIndex.value = '0';
       state.stagedPercent = undefined;
       state.stagedIndex = undefined;
+
+      // >>> advance ladder progress & redraw
+      state.progressAbs = Math.min(state.progressAbs + 1, Math.max(0, state.bank.length));
+      syncLadderToProgress();
     });
 
     // Copy invite
@@ -582,12 +586,12 @@
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
         state.current = snap.val()||{};
         const cur = state.current;
+
+        // show % to host + players
         percentTxt.textContent = (cur && typeof cur.percent === 'number') ? `${cur.percent}%` : '—';
         const pPercentEl = els('#pPercent');
         if (pPercentEl) pPercentEl.textContent =
-        (cur && typeof cur.percent === 'number') ? `This question: ${cur.percent}%` : '';
-
-
+          (cur && typeof cur.percent === 'number') ? `This question: ${cur.percent}%` : '';
 
         // Host view
         phaseTxt.textContent = cur.phase || '—';
@@ -727,7 +731,7 @@
       }).join('');
     }
 
-    // ======== Question bank: import and stage + LADDER WIRING ========
+    // ======== Bank parsing ========
     function parseBank(text){
       text = (text || '').trim();
       if (!text) return [];
@@ -793,7 +797,7 @@
       return { prompt, options, correctIndex, seconds, ...(percent!=null ? {percent}: {}) };
     }
 
-    // ===== Ladder helpers =====
+    // ===== Ladder helpers (progress-driven) =====
     const ladder = new PercentLadder('#ladder', {
       steps: [90,80,70,60,50,40,30,20,10,1],
       currentIndex: 0,
@@ -801,10 +805,17 @@
       checkpoints: [4,7] // 50% & 20% examples
     });
 
-    // Compute 10‑Q chunk start based on current bankIndex
-    function chunkStartIndex(i){ return Math.floor(i/10)*10; }
+    function percentForAbsoluteIndex(absIndex){
+      const defaultLadder = [90,80,70,60,50,40,30,20,10,1];
+      const start = Math.floor(absIndex/10)*10;
+      const item = state.bank[absIndex];
+      if (item && Number.isFinite(item.percent)) return item.percent;
+      return defaultLadder[absIndex - start] ?? 90;
+    }
 
-    function buildStepsForChunk(start){
+    // >>> progress-based chunking
+    function chunkStartByProgress(abs){ return Math.floor(abs/10)*10; }
+    function buildStepsForProgressChunk(start){
       const defaultLadder = [90,80,70,60,50,40,30,20,10,1];
       const steps = defaultLadder.slice();
       for (let k=0;k<10;k++){
@@ -813,60 +824,32 @@
       }
       return steps;
     }
-
-    function initLadderChunk(){
-      const start = chunkStartIndex(state.bankIndex);
-      const steps = buildStepsForChunk(start);
+    function syncLadderToProgress(){
+      const start = chunkStartByProgress(state.progressAbs);
+      const steps = buildStepsForProgressChunk(start);
+      const within = state.progressAbs % 10;
       ladder.setSteps(steps);
-      ladder.setCleared(Array.from({length: state.bankIndex - start}, (_,i)=>i));
-      ladder.setCurrent(state.bankIndex - start);
+      ladder.setCleared(Array.from({length: within}, (_,i)=>i));
+      ladder.setCurrent(within);
     }
 
-    function rebuildLadderForChunkIfNeeded(prevIndex){
-      const prevChunk = chunkStartIndex(prevIndex);
-      const nowChunk = chunkStartIndex(state.bankIndex);
-      if (prevChunk !== nowChunk){
-        // New chunk → rebuild steps and reset cleared
-        initLadderChunk();
-      } else {
-        // Same chunk → just advance
-        advanceLadder();
-      }
-    }
-function percentForAbsoluteIndex(absIndex){
-  const defaultLadder = [90,80,70,60,50,40,30,20,10,1];
-  const start = Math.floor(absIndex/10)*10;
-  const item = state.bank[absIndex];
-  if (item && Number.isFinite(item.percent)) return item.percent;
-  return defaultLadder[absIndex - start] ?? 90;
-}
-
-    function advanceLadder(){
-      const start = chunkStartIndex(state.bankIndex);
-      ladder.setCurrent(state.bankIndex - start);
-      ladder.setCleared(Array.from({length: state.bankIndex - start}, (_,i)=>i));
-    }
-
-    // Allow host to jump by clicking ladder
+    // Allow host to jump by clicking ladder (seek within current chunk)
     document.getElementById('ladder').addEventListener('ladder-select', (e)=>{
-      const start = chunkStartIndex(state.bankIndex);
-      const idxWithin = e.detail.index;
-      const absIndex = start + idxWithin;
-      if (absIndex < state.bank.length){
-        state.bankIndex = absIndex;
-        bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
-        // No need to rebuild chunk; just move cursor
-        advanceLadder();
-      }
+      const targetWithin = e.detail.index;              // 0..9
+      const start = chunkStartByProgress(state.progressAbs);
+      state.progressAbs = start + targetWithin;
+      syncLadderToProgress();
     });
 
     // Buttons
     importBankBtn.addEventListener('click', ()=>{
       const arr = parseBank(bankText.value);
-      state.bank = arr; state.bankIndex = 0;
+      state.bank = arr; 
+      state.bankIndex = 0;
+      state.progressAbs = 0;                  // >>> reset progress when loading
       bankCount.textContent = String(arr.length);
       bankNext.textContent = String(arr.length ? 1 : 0);
-      initLadderChunk();
+      syncLadderToProgress();                 // >>> draw ladder for first question
       alert(arr.length ? `Loaded ${arr.length} questions` : 'No valid questions found');
     });
 
@@ -881,12 +864,14 @@ function percentForAbsoluteIndex(absIndex){
       opt3.value = item.options[3] || '';
       correctIndex.value = String(item.correctIndex || 0);
       answerWindow.value = String(item.seconds || 30);
+
+      // record staged percent & index (used when we hit Reveal)
       state.stagedIndex = i;
       state.stagedPercent = percentForAbsoluteIndex(i);
-      const prev = state.bankIndex;
+
+      // move the bank cursor forward (this does NOT move the ladder)
       state.bankIndex++;
       bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
-      rebuildLadderForChunkIfNeeded(prev);
     });
 
   </script>
