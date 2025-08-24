@@ -772,6 +772,8 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
 
     // Next — arms next slot & auto-stages from bank if present
     nextBtn.addEventListener('click', async () => {
+      checkpointModal?.classList.add('hide');
+      finalModal?.classList.add('hide');
       const code = state.room;
       const metaSnap = await get(ref(db, `rooms/${code}/meta`));
       const meta = metaSnap.val() || {};
