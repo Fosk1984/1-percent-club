@@ -23,6 +23,7 @@
       box-shadow:0 10px 30px rgba(0,0,0,.35); border-radius:16px; padding:16px; margin:12px 0}
     .grid{display:grid; gap:12px}
     .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
     .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
     label{font-size:14px; color:var(--muted)}
     input, textarea, select{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--edge);
@@ -250,8 +251,19 @@
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
 
+    const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
+
     // progressAbs drives the ladder; bankIndex is just the staging cursor
-    const state = { uid:null, room:null, host:false, me:null, current:null, timerInt:null, bank:[], bankIndex:0, meEliminated:false, progressAbs:0 };
+    const state = {
+      uid:null, room:null, host:false, me:null,
+      current:null, timerInt:null,
+      bank:[], bankIndex:0,
+      meEliminated:false,
+      progressAbs:0,        // absolute question progress for ladder/percent
+      stagedPercent: undefined,
+      stagedIndex: undefined
+    };
 
     // UI elements
     const landing = els('#landing');
@@ -309,7 +321,7 @@
     const bankNext = els('#bankNext');
     const percentTxt = els('#percentTxt');
 
-    // ===== Percent Ladder =====
+    // ===== Percent Ladder component =====
     class PercentLadder {
       constructor(selectorOrEl, {steps=[], currentIndex=0, cleared=[], checkpoints=[]}={}){
         this.el = typeof selectorOrEl==='string' ? document.querySelector(selectorOrEl) : selectorOrEl;
@@ -385,7 +397,7 @@
       checkpoints: [4,7] // 50% & 20% examples
     });
 
-    // === Progress-driven ladder helpers ===
+    // ===== Ladder helpers (progress-driven) =====
     function percentForAbsoluteIndex(absIndex){
       const defaultLadder = [90,80,70,60,50,40,30,20,10,1];
       const start = Math.floor(absIndex/10)*10;
@@ -479,6 +491,8 @@
       hostUI.classList.remove('hide');
       roomCodeHost.textContent = state.room;
       wireRoomListeners();
+      // keep ladder in sync from the start
+      syncLadderToProgress();
     }
     function enterPlayer(){
       landing.classList.add('hide');
@@ -514,7 +528,7 @@
       phaseTxt.textContent = 'hidden';
     });
 
-    // Reveal (robust)
+    // Reveal (robust) — percent derived from absolute progress unless bank overrides
     revealBtn.addEventListener('click', async ()=>{
       try{
         if(!qPrompt.value.trim()) return alert('Enter a question');
@@ -530,7 +544,7 @@
 
         const p = (typeof state.stagedPercent === 'number')
           ? state.stagedPercent
-          : (ladder?.steps?.[ladder?.currentIndex ?? 0] ?? 90);
+          : percentForAbsoluteIndex(state.progressAbs);
 
         const payload = {
           phase: 'revealed',
@@ -611,12 +625,11 @@
     });
 
     // Copy invite
-    const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
-    copyInvite.addEventListener('click', async ()=>{
+    const copyInviteBtn = copyInvite;
+    copyInviteBtn.addEventListener('click', async ()=>{
       const url = `${location.origin}${location.pathname}?room=${state.room}`;
       await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
-      copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
+      copyInviteBtn.textContent = 'Copied!'; setTimeout(()=>copyInviteBtn.textContent='Copy invite',1500);
     });
 
     // Room listeners
@@ -770,6 +783,107 @@
         </div>`;
       }).join('');
     }
+
+    // ======== Bank parsing + staging ========
+    function parseBank(text){
+      text = (text || '').trim();
+      if (!text) return [];
+
+      // Try JSON first
+      try {
+        const data = JSON.parse(text);
+        const arr = Array.isArray(data) ? data : [data];
+        return arr.map(normalizeItem).filter(Boolean);
+      } catch (_) {
+        // fall through to CSV
+      }
+
+      // CSV fallback (header: prompt,A,B,C,D,correct,seconds,percent)
+      const lines = text
+        .split('\n')
+        .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l))
+        .filter(Boolean);
+
+      if (lines.length < 2) return [];
+
+      const header = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const idx = k => header.indexOf(k);
+
+      const out = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        const item = {
+          prompt:  cols[idx('prompt')]?.trim(),
+          A:       cols[idx('a')]?.trim(),
+          B:       cols[idx('b')]?.trim(),
+          C:       cols[idx('c')]?.trim(),
+          D:       cols[idx('d')]?.trim(),
+          correct: cols[idx('correct')]?.trim(),
+          seconds: Number(cols[idx('seconds')] || 30),
+          percent: Number(cols[idx('percent')] || NaN)
+        };
+        const norm = normalizeItem(item);
+        if (norm) out.push(norm);
+      }
+      return out;
+    }
+
+    function normalizeItem(raw){
+      if (!raw) return null;
+      const prompt = raw.prompt || raw.question || '';
+      let options = raw.options || [raw.A, raw.B, raw.C, raw.D];
+      if (!Array.isArray(options) || options.length < 4) return null;
+      options = options.slice(0, 4);
+
+      let correctIndex = (typeof raw.correctIndex === 'number') ? raw.correctIndex : null;
+      if (correctIndex == null && typeof raw.correct === 'string') {
+        const map = { A:0, B:1, C:2, D:3 };
+        correctIndex = map[(raw.correct || '').toUpperCase()];
+      }
+      const seconds = Number(raw.seconds || 30);
+
+      // Optional percent
+      let percent = Number(raw.percent);
+      if (!Number.isFinite(percent)) percent = undefined;
+
+      if (!(Number.isInteger(correctIndex) && correctIndex >= 0 && correctIndex <= 3)) return null;
+      return { prompt, options, correctIndex, seconds, ...(percent!=null ? {percent}: {}) };
+    }
+
+    // Import bank
+    importBankBtn.addEventListener('click', ()=>{
+      const arr = parseBank(bankText.value);
+      state.bank = arr;
+      state.bankIndex = 0;
+      state.progressAbs = 0;                  // reset progress when loading
+      bankCount.textContent = String(arr.length);
+      bankNext.textContent = String(arr.length ? 1 : 0);
+      syncLadderToProgress();                 // draw ladder for first question
+      alert(arr.length ? `Loaded ${arr.length} questions` : 'No valid questions found');
+    });
+
+    // Stage next from bank
+    stageNextBtn.addEventListener('click', ()=>{
+      const i = state.bankIndex;
+      if (!state.bank.length || i >= state.bank.length) { alert('Bank empty or finished'); return; }
+      const item = state.bank[i];
+      qPrompt.value = item.prompt;
+      opt0.value = item.options[0] || '';
+      opt1.value = item.options[1] || '';
+      opt2.value = item.options[2] || '';
+      opt3.value = item.options[3] || '';
+      correctIndex.value = String(item.correctIndex || 0);
+      answerWindow.value = String(item.seconds || 30);
+
+      // Only stage a percent if the item explicitly has one; else let Reveal compute from progressAbs
+      state.stagedIndex = i;
+      state.stagedPercent = Number.isFinite(item.percent) ? item.percent : undefined;
+
+      // move the bank cursor forward (this does NOT move the ladder/progress)
+      state.bankIndex++;
+      bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
+    });
+
   </script>
 </body>
 </html>
