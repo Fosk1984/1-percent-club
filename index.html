@@ -704,11 +704,15 @@
       const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
 
       if (aliveAfter.length === 0) {
-        await showFinalRecap({ winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid });
-      } else if (bankDone && cur.phase === 'result') {
-        await showFinalRecap({ winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid });
-      }
-    }
+    const summary = { winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid, at: Date.now() + serverOffset };
+    await set(ref(db, `rooms/${code}/final`), summary);
+    await showFinalRecap(summary);
+    } else if (bankDone && cur.phase === 'result') {
+     const summary = { winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid, at: Date.now() + serverOffset };
+    await set(ref(db, `rooms/${code}/final`), summary);
+    await showFinalRecap(summary);
+ }
+
 
     // Helpers for final recap rendering
     async function namesFromUids(code, uidList){
@@ -756,6 +760,7 @@
     nextBtn.addEventListener('click', async () => {
       checkpointModal?.classList.add('hide');
       finalModal?.classList.add('hide');
+      await set(ref(db, `rooms/${state.room}/final`), null);
       const code = state.room;
       const metaSnap = await get(ref(db, `rooms/${code}/meta`));
       const meta = metaSnap.val() || {};
@@ -932,6 +937,13 @@
             const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); // 3=alive,1=present-elim,0=offline
             return rank(b) - rank(a);
           });
+
+          onValue(ref(db, `rooms/${code}/final`), async (snap) => {
+        const v = snap.val();
+        if (!v) return;
+        await showFinalRecap(v);
+      });
+          
           playersList.innerHTML = '';
           sorted.forEach(([uid,p])=>{
             const row = document.createElement('div'); row.className='row';
