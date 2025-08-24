@@ -231,7 +231,54 @@
         <h2>Players</h2>
         <div id="playersListPlayer" class="list"></div>
       </div>
+    <!-- Checkpoint Recap Modal -->
+<div id="checkpointModal" class="hide"
+     style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
+  <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
+              background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.12));
+              border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
+      <h2 style="margin:0">Checkpoint recap</h2>
+      <button id="closeCheckpointBtn">Close</button>
     </div>
+    <div class="grid g2">
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0">Still in</h2>
+        <div id="cpAliveList" class="list"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0">Out</h2>
+        <div id="cpOutList" class="list"></div>
+      </div>
+    </div>
+    <div class="hint small" style="margin-top:8px">This shows players who were present at the time of the checkpoint.</div>
+  </div>
+</div>
+
+<!-- Final Recap Modal -->
+<div id="finalModal" class="hide"
+     style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
+  <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
+              background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.12));
+              border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
+      <h2 id="finalTitle" style="margin:0">Game results</h2>
+      <button id="closeFinalBtn">Close</button>
+    </div>
+    <div class="grid g2">
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0" id="finalLeftHdr">Winner(s)</h2>
+        <div id="finalLeftList" class="list"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0" id="finalRightHdr">Others</h2>
+        <div id="finalRightList" class="list"></div>
+      </div>
+    </div>
+    <div id="finalSub" class="hint small" style="margin-top:8px"></div>
+  </div>
+</div>
+
 
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
@@ -321,6 +368,27 @@
     const msg = els('#msg');
     const eliminated = els('#eliminated');
     const lockAnswerBtn = document.getElementById('lockAnswerBtn');
+// Modal elements (checkpoint)
+const checkpointModal = document.getElementById('checkpointModal');
+const cpAliveList = document.getElementById('cpAliveList');
+const cpOutList = document.getElementById('cpOutList');
+const closeCheckpointBtn = document.getElementById('closeCheckpointBtn');
+
+// Final modal elements
+const finalModal = document.getElementById('finalModal');
+const closeFinalBtn = document.getElementById('closeFinalBtn');
+const finalTitle = document.getElementById('finalTitle');
+const finalLeftHdr = document.getElementById('finalLeftHdr');
+const finalRightHdr = document.getElementById('finalRightHdr');
+const finalLeftList = document.getElementById('finalLeftList');
+const finalRightList = document.getElementById('finalRightList');
+const finalSub = document.getElementById('finalSub');
+
+// Guards
+let shownCheckpointForQid = null;
+
+if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
+if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
 
     // Question bank elements
     const bankText = els('#bankText');
@@ -573,21 +641,110 @@
     });
 
     // ===== Scoring (refactored) =====
-    async function scoreRound(){
-      const code = state.room;
-      const currentRef = ref(db, `rooms/${code}/current`);
-      const curSnap = await get(currentRef);
-      const cur = curSnap.val();
-      if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
+    // Utility: who is alive right now
+async function getAliveUids(code){
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+  return Object.entries(players)
+    .filter(([,p]) => p.present && !p.eliminated)
+    .map(([uid]) => uid);
+}
 
-      const cIdx = parseInt(correctIndex.value, 10);
-      await update(currentRef, { phase: 'result', correctIndex: cIdx });
+// ===== Scoring (refactored with end-of-game + final recap) =====
+async function scoreRound(){
+  const code = state.room;
+  const currentRef = ref(db, `rooms/${code}/current`);
+  const curSnap = await get(currentRef);
+  const cur = curSnap.val();
+  if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
 
-      const [ansSnap, playersSnap] = await Promise.all([
-        get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
-        get(ref(db, `rooms/${code}/players`))
-      ]);
+  // Who was alive BEFORE scoring (used if everyone drops out)
+  const aliveBefore = await getAliveUids(code);
 
+  const cIdx = parseInt(correctIndex.value, 10);
+  await update(currentRef, { phase: 'result', correctIndex: cIdx });
+
+  const [ansSnap, playersSnap] = await Promise.all([
+    get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
+    get(ref(db, `rooms/${code}/players`))
+  ]);
+
+  const answers = ansSnap.exists() ? ansSnap.val() : {};
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+
+  // Eliminate wrong / no-answer
+  const updates = {};
+  for (const [uid, p] of Object.entries(players)) {
+    if (!(p.present && !p.eliminated)) continue;
+    const a = answers[uid];
+    const wrongOrMissing = !a || a.index !== cIdx;
+    if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
+  }
+  if (Object.keys(updates).length) await update(ref(db), updates);
+
+  // Aggregate results
+  const counts = [0, 0, 0, 0];
+  let total = 0;
+  for (const a of Object.values(answers)) {
+    if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
+  }
+  await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
+
+  // Decide if game is over
+  const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
+  const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
+  const aliveAfter = Object.entries(playersAfter)
+    .filter(([,p]) => p.present && !p.eliminated)
+    .map(([uid]) => uid);
+
+  // We advance progress on Reveal; if we've just shown the last banked question, bankDone = true
+  const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
+
+  if (aliveAfter.length === 0) {
+    await showFinalRecap({ winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid });
+  } else if (bankDone && cur.phase === 'result') {
+    await showFinalRecap({ winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid });
+  }
+}
+
+// Helpers for final recap rendering
+async function namesFromUids(code, uidList){
+  if (!uidList?.length) return [];
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+  return uidList.map(uid => (players[uid]?.name || 'Player'));
+}
+
+async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = null } = {}){
+  const code = state.room;
+  const winnerNames = await namesFromUids(code, winners);
+  const lastNames = await namesFromUids(code, lastRemaining);
+
+  const hadWinners = winnerNames.length > 0;
+
+  finalTitle.textContent = hadWinners ? 'Final results — Winner(s)' : 'Final results — No winners';
+  finalLeftHdr.textContent = hadWinners ? 'Winner(s)' : 'Last remaining';
+  finalRightHdr.textContent = hadWinners ? 'Everyone else' : 'Others';
+
+  finalLeftList.innerHTML = (hadWinners ? winnerNames : lastNames).length
+    ? (hadWinners ? winnerNames : lastNames).map(n => `<div class="row"><span class="tag">🏆</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">—</div>';
+
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+  const others = Object.values(players).map(p => p?.name || 'Player')
+    .filter(n => !(hadWinners ? winnerNames : lastNames).includes(n));
+
+  finalRightList.innerHTML = others.length
+    ? others.map(n => `<div class="row"><span class="tag">🎮</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">—</div>';
+
+  finalSub.textContent = hadWinners
+    ? 'Game ended with at least one player still in.'
+    : (lastDropQid ? `Everyone dropped out on question #${lastDropQid}.` : 'Everyone was eliminated on the final question.');
+
+  finalModal?.classList.remove('hide');
+}
       const answers = ansSnap.exists() ? ansSnap.val() : {};
       const players = playersSnap.exists() ? playersSnap.val() : {};
 
@@ -743,6 +900,8 @@
             ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
             : null;
           renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
+          maybeShowCheckpointRecapIfNeeded(cur);
+
         }
 
         if (!state.host){
@@ -760,6 +919,7 @@
             if (cur.phase === 'result') {
               renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
               revealCorrect(cur);
+              maybeShowCheckpointRecapIfNeeded(cur);
             } else {
               resultsPlayer.innerHTML = '';
             }
@@ -900,6 +1060,46 @@
       tick(); state.timerInt = setInterval(tick, 200);
     }
     function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
+// Show checkpoint recap when a result lands on a checkpoint index
+async function maybeShowCheckpointRecapIfNeeded(curObj) {
+  if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
+
+  // The just-finished question index inside the current 10-pack
+  const within = (state.progressAbs - 1) % 10;
+
+  // Use the ladder's checkpoints set if available; fallback to [4,7]
+  const isCheckpointIndex = ladder?.checkpoints?.has
+    ? ladder.checkpoints.has(within)
+    : [4,7].includes(within);
+  if (!isCheckpointIndex) return;
+
+  // Avoid re-showing for the same qid
+  if (shownCheckpointForQid === curObj.qid) return;
+  shownCheckpointForQid = curObj.qid;
+
+  // Build lists
+  const code = state.room;
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+
+  const alive = [];
+  const out = [];
+  for (const p of Object.values(players)) {
+    if (!p || !p.name) continue;
+    if (p.present && !p.eliminated) alive.push(p.name);
+    else out.push(p.name || 'Player');
+  }
+
+  cpAliveList.innerHTML = alive.length
+    ? alive.map(n => `<div class='row'><span class='tag'>✅ in</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">No one is currently in.</div>';
+
+  cpOutList.innerHTML = out.length
+    ? out.map(n => `<div class='row'><span class='tag'>❌ out</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">No one is out yet.</div>';
+
+  checkpointModal?.classList.remove('hide');
+}
 
     function renderResults(container, countsArr, total, correctIdx){
       if(!container) return;
