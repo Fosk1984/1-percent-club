@@ -925,27 +925,42 @@
         }
       });
 
-      // players
-      onValue(ref(db,`rooms/${code}/players`), (snap)=>{
-        const players = snap.val()||{};
-        const entries = Object.entries(players);
-        const alive = entries.filter(([,p])=>p.present && !p.eliminated).length;
-        aliveCount.textContent = alive;
+       // players
+    onValue(ref(db,`rooms/${code}/players`), (snap)=>{
+      const players = snap.val()||{};
+      const entries = Object.entries(players);
+      const alive = entries.filter(([,p])=>p.present && !p.eliminated).length;
+      aliveCount.textContent = alive;
 
-        if (state.host){
+      if (state.host){
+        const sorted = entries.sort(([,a],[,b])=>{
+          const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); // 3=alive,1=present-elim,0=offline
+          return rank(b) - rank(a);
+        });
+        playersList.innerHTML = '';
+        sorted.forEach(([uid,p])=>{
+          const row = document.createElement('div'); row.className='row';
+          const name = document.createElement('div'); name.textContent = p.name||'Player';
+          const tags = document.createElement('div'); tags.className='row';
+          tags.innerHTML = `
+            <span class="tag">${p.present? 'present':'offline'}</span>
+            <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>
+          `;
+          row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
+        });
+      } else {
+        const me = players[state.uid]||{};
+        state.meEliminated = !!me.eliminated;
+        eliminated.classList.toggle('hide', !state.meEliminated);
+
+        const listEl = document.getElementById('playersListPlayer');
+        if (listEl){
           const sorted = entries.sort(([,a],[,b])=>{
-            const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); // 3=alive,1=present-elim,0=offline
+            const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2);
             return rank(b) - rank(a);
           });
-
-          onValue(ref(db, `rooms/${code}/final`), async (snap) => {
-        const v = snap.val();
-        if (!v) return;
-        await showFinalRecap(v);
-      });
-  }       
-          playersList.innerHTML = '';
-          sorted.forEach(([uid,p])=>{
+          listEl.innerHTML = '';
+          sorted.forEach(([,p])=>{
             const row = document.createElement('div'); row.className='row';
             const name = document.createElement('div'); name.textContent = p.name||'Player';
             const tags = document.createElement('div'); tags.className='row';
@@ -953,41 +968,21 @@
               <span class="tag">${p.present? 'present':'offline'}</span>
               <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>
             `;
-            row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
+            row.appendChild(name); row.appendChild(tags); listEl.appendChild(row);
           });
-        } 
-              else {
-          const me = players[state.uid]||{};
-          state.meEliminated = !!me.eliminated;
-          eliminated.classList.toggle('hide', !state.meEliminated);
-
-          const listEl = document.getElementById('playersListPlayer');
-          if (listEl){
-            const sorted = entries.sort(([,a],[,b])=>{
-              const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2);
-              return rank(b) - rank(a);
-            });
-            listEl.innerHTML = '';
-            sorted.forEach(([,p])=>{
-              const row = document.createElement('div'); row.className='row';
-              const name = document.createElement('div'); name.textContent = p.name||'Player';
-              const tags = document.createElement('div'); tags.className='row';
-              tags.innerHTML = `
-                <span class="tag">${p.present? 'present':'offline'}</span>
-                <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>
-              `;
-              row.appendChild(name); row.appendChild(tags); listEl.appendChild(row);
-            });
-            onValue(ref(db, `rooms/${code}/final`), async (snap) => {
-        const v = snap.val();
-        if (!v) return;
-        await showFinalRecap(v);
-      });
-          }
         }
+      }
+    }); // closes players onValue
+
+    // final recap broadcast (all clients)
+    onValue(ref(db, `rooms/${code}/final`), async (snap) => {
+      const v = snap.val();
+      if (!v) return;
+      await showFinalRecap(v);
     });
 
-
+  } // closes wireRoomListeners
+      
     function renderAnswerButtons(cur){
       answerBtns.innerHTML = '';
       const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
