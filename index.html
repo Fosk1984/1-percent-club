@@ -1050,7 +1050,7 @@
       if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
 
       // The just-finished question index inside the current 10-pack
-      const within = (state.progressAbs - 1) % 10;
+      const within = (curObj.qid - 1) % 10;
 
       // Use the ladder's checkpoints set if available; fallback to [4,7]
       const isCheckpointIndex = ladder?.checkpoints?.has
