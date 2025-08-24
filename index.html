@@ -152,13 +152,12 @@
             </select>
           </div>
           <div class="row" style="margin-top:10px">
-            <button id="stageHiddenBtn">1) Arm question (hidden)</button>
             <button id="revealBtn" class="btn-acc">2) Reveal to players & start timer</button>
             <button id="lockBtn" class="btn-bad">3) Lock answers now</button>
             <button id="scoreBtn" class="btn-ok">4) Reveal correct & eliminate</button>
             <button id="nextBtn" class="btn-acc2">Next question</button>
           </div>
-          <div class="hint">Flow: Arm → Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
+          <div class="hint">Flow: Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
         </div>
         <div class="card">
           <h2>Players</h2>
@@ -525,18 +524,6 @@
       await set(curRef, { phase:'hidden', qid, prompt:null, choices:null, stats:null });
       return qid;
     }
-
-    // Arm (manual)
-    stageHiddenBtn.addEventListener('click', async ()=>{
-      const code = state.room; if(!code) return;
-      const metaRef = ref(db, `rooms/${code}/meta`);
-      const metaSnap = await get(metaRef); const meta = metaSnap.val()||{};
-      const qid = (meta.qIndex||0)+1;
-      await update(metaRef, { qIndex: qid });
-      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null, stats:null });
-      qNumber.textContent = qid;
-      phaseTxt.textContent = 'hidden';
-    });
 
     // Reveal — percent derived from absolute progress unless bank overrides; also advance ladder here
     revealBtn.addEventListener('click', async ()=>{
