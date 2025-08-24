@@ -172,6 +172,7 @@
           <div class="row">
             <div class="pill">Phase: <span id="phaseTxt">—</span></div>
             <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
+          <div class="pill">Percent: <span id="percentTxt">—</span></div>
           </div>
           <div id="livePrompt" class="big" style="margin-top:8px">—</div>
           <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
@@ -217,7 +218,8 @@
       </div>
       <div id="msg" class="muted" style="margin-top:6px">Waiting for host…</div>
       <div id="qArea" class="hide">
-        <div id="pPrompt" class="big" style="margin:10px 0">—</div>
+       <div id="pPrompt" class="big" style="margin:10px 0">—</div>
+        <div class="muted" id="pPercent" style="margin:-6px 0 8px"> </div>
         <div class="answers" id="answerBtns"></div>
         <div id="resultsPlayer" style="margin-top:10px"></div>
       </div>
@@ -309,6 +311,8 @@
     const stageNextBtn = els('#stageNextBtn');
     const bankCount = els('#bankCount');
     const bankNext = els('#bankNext');
+    const percentTxt = els('#percentTxt');
+
 
     // ===== Percent Ladder elements & logic =====
     class PercentLadder {
@@ -461,15 +465,30 @@
     });
 
     // Reveal question & start timer
-    revealBtn.addEventListener('click', async ()=>{
-      if(!qPrompt.value.trim()) return alert('Enter a question');
-      const choices = [opt0.value, opt1.value, opt2.value, opt3.value];
-      if(choices.some(c=>!c || !c.trim())) return alert('Enter all 4 choices');
-      const secs = parseInt(answerWindow.value,10);
-      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
-      const deadline = Date.now() + serverOffset + secs*1000;
-      await update(currentRef, { phase:'revealed', prompt:qPrompt.value.trim(), choices, deadline });
-    });
+   revealBtn.addEventListener('click', async ()=>{
+  if(!qPrompt.value.trim()) return alert('Enter a question');
+  const choices = [opt0.value, opt1.value, opt2.value, opt3.value];
+  if(choices.some(c=>!c || !c.trim())) return alert('Enter all 4 choices');
+
+  const secs = parseInt(answerWindow.value,10);
+  const code = state.room; 
+  const currentRef = ref(db,`rooms/${code}/current`);
+  const deadline = Date.now() + serverOffset + secs*1000;
+
+  // ⬇️ use staged percent if we have it; otherwise take current ladder step (or 90 fallback)
+  const p = (typeof state.stagedPercent === 'number')
+    ? state.stagedPercent
+    : (ladder?.steps?.[ladder?.currentIndex ?? 0] ?? 90);
+
+  await update(currentRef, { 
+    phase:'revealed', 
+    prompt:qPrompt.value.trim(), 
+    choices, 
+    deadline,
+    percent: p        // ⬅️ NEW: publish percent for this question
+  });
+});
+
 
     // Lock answers now (forces deadline to now)
     lockBtn.addEventListener('click', async ()=>{
@@ -530,6 +549,8 @@
 
       qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
       correctIndex.value = '0';
+      state.stagedPercent = undefined;
+      state.stagedIndex = undefined;
     });
 
     // Copy invite
@@ -561,6 +582,12 @@
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
         state.current = snap.val()||{};
         const cur = state.current;
+        percentTxt.textContent = (cur && typeof cur.percent === 'number') ? `${cur.percent}%` : '—';
+        const pPercentEl = els('#pPercent');
+        if (pPercentEl) pPercentEl.textContent =
+        (cur && typeof cur.percent === 'number') ? `This question: ${cur.percent}%` : '';
+
+
 
         // Host view
         phaseTxt.textContent = cur.phase || '—';
@@ -806,6 +833,13 @@
         advanceLadder();
       }
     }
+function percentForAbsoluteIndex(absIndex){
+  const defaultLadder = [90,80,70,60,50,40,30,20,10,1];
+  const start = Math.floor(absIndex/10)*10;
+  const item = state.bank[absIndex];
+  if (item && Number.isFinite(item.percent)) return item.percent;
+  return defaultLadder[absIndex - start] ?? 90;
+}
 
     function advanceLadder(){
       const start = chunkStartIndex(state.bankIndex);
@@ -847,7 +881,8 @@
       opt3.value = item.options[3] || '';
       correctIndex.value = String(item.correctIndex || 0);
       answerWindow.value = String(item.seconds || 30);
-
+      state.stagedIndex = i;
+      state.stagedPercent = percentForAbsoluteIndex(i);
       const prev = state.bankIndex;
       state.bankIndex++;
       bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
