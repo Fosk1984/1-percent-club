@@ -978,6 +978,11 @@
               `;
               row.appendChild(name); row.appendChild(tags); listEl.appendChild(row);
             });
+            onValue(ref(db, `rooms/${code}/final`), async (snap) => {
+        const v = snap.val();
+        if (!v) return;
+        await showFinalRecap(v);
+      });
           }
         }
     });
