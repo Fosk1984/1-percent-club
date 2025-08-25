@@ -941,6 +941,53 @@ if (closeCheckpointBtn) {
     }
     function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
 
+async function maybeShowCheckpointRecapIfNeeded(curObj) {
+  // Only when we've finished a question
+  if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
+
+  // Your ladder advances on Reveal; the just-finished question is (state.progressAbs - 1).
+  // Within-chunk index is 0..9; checkpoints by default are [4,7] on the ladder instance.
+  const within = (state.progressAbs - 1) % 10;
+  const isCheckpointIndex = ladder?.checkpoints?.has
+    ? ladder.checkpoints.has(within)         // if Set (as in your class)
+    : [4,7].includes(within);                // fallback
+
+  if (!isCheckpointIndex) return;
+
+  // Avoid re-showing for the same qid
+  if (shownCheckpointForQid === curObj.qid) return;
+  shownCheckpointForQid = curObj.qid;
+
+  // Load current players
+  const code = state.room;
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+
+  // Partition by present + eliminated
+  const alive = [];
+  const out = [];
+  for (const p of Object.values(players)) {
+    if (!p || !p.name) continue;
+    if (p.present && !p.eliminated) alive.push(p.name);
+    else out.push(p.name || 'Player');
+  }
+
+  // Render lists
+  if (cpAliveList) {
+    cpAliveList.innerHTML = alive.length
+      ? alive.map(n => `<div class="row"><span class="tag">✅ in</span><div>${n}</div></div>`).join('')
+      : '<div class="muted small">No one is currently in.</div>';
+  }
+  if (cpOutList) {
+    cpOutList.innerHTML = out.length
+      ? out.map(n => `<div class="row"><span class="tag">❌ out</span><div>${n}</div></div>`).join('')
+      : '<div class="muted small">No one is out yet.</div>';
+  }
+
+  // Show modal (host and players)
+  checkpointModal?.classList.remove('hide');
+}
+    
     function renderResults(container, countsArr, total, correctIdx){
       if(!container) return;
       if(!countsArr){ container.innerHTML=''; return; }
