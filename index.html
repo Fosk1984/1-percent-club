@@ -781,6 +781,7 @@ if (closeCheckpointBtn) {
             ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
             : null;
           renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
+          maybeShowCheckpointRecapIfNeeded(cur);
         }
 
         if (!state.host){
@@ -798,6 +799,7 @@ if (closeCheckpointBtn) {
             if (cur.phase === 'result') {
               renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
               revealCorrect(cur);
+              maybeShowCheckpointRecapIfNeeded(cur);
             } else {
               resultsPlayer.innerHTML = '';
             }
