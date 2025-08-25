@@ -316,7 +316,8 @@
       progressAbs:0,
       stagedPercent: undefined,
       stagedIndex: undefined,
-      meLocked: false
+      meLocked: false,
+      myAnswerIndex: null
     };
 
     // UI elements
@@ -892,9 +893,11 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
         state.current = snap.val()||{};
         const cur = state.current;
-        // Reset local lock when a new question gets armed/hidden
-if (cur && cur.phase === 'hidden') {
+       // Reset local answer/lock state when a new question is revealed
+if (cur.phase === 'revealed' && cur.qid) {
   state.meLocked = false;
+  state.myAnswerIndex = null;
+}
 }
 
 // Keep my lock state in sync with DB while revealed
@@ -1033,26 +1036,38 @@ if (!state.host && cur && cur.phase === 'revealed' && Number.isInteger(cur.qid))
 
    function renderAnswerButtons(cur){
   answerBtns.innerHTML = '';
-  // can answer if revealed, not eliminated, and not already locked
-  const canAnswer = cur.phase === 'revealed' && !state.meEliminated && !state.meLocked;
+  const canInteract = cur.phase === 'revealed' && !state.meEliminated && !state.meLocked;
 
   ['A','B','C','D'].forEach((letter,i)=>{
-    const btn = document.createElement('button'); 
-    btn.className='answerBtn';
+    const btn = document.createElement('button');
+    btn.className = 'answerBtn';
     btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
-    btn.disabled = !canAnswer;
-    if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
+
+    // Selected style if it's the one we last chose
+    if (state.myAnswerIndex === i) btn.classList.add('selected');
+
+    // Disable only if we can't interact (locked or not in reveal)
+    btn.disabled = !canInteract;
+
+    if (canInteract) {
+      btn.addEventListener('click', ()=> submitAnswer(i));
+    }
+
     answerBtns.appendChild(btn);
   });
 
-  // If they haven't answered yet, keep lock disabled; enable after any selection (submitAnswer does that)
-  if (lockAnswerBtn) lockAnswerBtn.disabled = true;
+  // Lock button: enabled only if (in reveal) and (we have an answer) and (not already locked)
+  if (lockAnswerBtn) {
+    const canLock = cur.phase === 'revealed' && state.myAnswerIndex !== null && !state.meLocked;
+    lockAnswerBtn.disabled = !canLock;
+  }
 }
     }
     // Client-side guard against late clicks; allow changing until locked
 async function submitAnswer(index){
-  const code = state.room; ;
-  if (!cur || cur.phase!=='revealed') return;
+  const code = state.room;
+  const cur  = state.current;
+  if (!cur || cur.phase !== 'revealed') return;
   if (state.meLocked) return; // can't change after you've locked
 
   const nowMs = Date.now() + serverOffset;
@@ -1060,20 +1075,33 @@ async function submitAnswer(index){
     alert('Too late — time’s up!');
     return;
   }
+
   const uid = auth.currentUser?.uid || state.uid;
   if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
 
-  const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
+  const ansRef = ref(db, `rooms/${code}/answers/${cur.qid}/${uid}`);
   try{
+    // Write (or overwrite) the answer in the DB
     await set(ansRef, { index, at: nowMs });
-    // highlight current selection; keep buttons enabled for changes
-    $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); });
-    if (lockAnswerBtn) lockAnswerBtn.disabled = false; // allow locking now
+
+    // Update local state + visuals (keep buttons enabled so they can reselect)
+    state.myAnswerIndex = index;
+    $$('.answerBtn').forEach((b,bi)=> {
+      b.classList.toggle('selected', bi === index);
+      // stay enabled while not locked
+      b.disabled = false;
+    });
+
+    // Enable lock now that we have any selection
+    if (lockAnswerBtn) {
+      lockAnswerBtn.disabled = false;
+    }
   }catch(err){
-    alert('Answer not accepted — timer likely expired.');
     console.error(err);
+    alert('Answer not accepted — timer likely expired.');
   }
 }
+
     async function lockMyAnswer(){
   const code = state.room;
   const cur  = state.current;
