@@ -765,7 +765,7 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
         if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
       }
       await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
-    }
+
 
     // Score button uses the shared function
     scoreBtn.addEventListener('click', scoreRound);
