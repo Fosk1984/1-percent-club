@@ -316,6 +316,7 @@
       progressAbs:0,
       stagedPercent: undefined,
       stagedIndex: undefined
+      meLocked: false
     };
 
     // UI elements
@@ -891,6 +892,35 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
         state.current = snap.val()||{};
         const cur = state.current;
+        // Reset local lock when a new question gets armed/hidden
+if (cur && cur.phase === 'hidden') {
+  state.meLocked = false;
+}
+
+// Keep my lock state in sync with DB while revealed
+if (!state.host && cur && cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
+  const uid = auth.currentUser?.uid || state.uid;
+  if (uid) {
+    const myLockRef = ref(db, `rooms/${state.room}/locks/${cur.qid}/${uid}`);
+    onValue(myLockRef, (lkSnap) => {
+      const locked = lkSnap.val() === true;
+      state.meLocked = !!locked;
+      if (locked) {
+        if (lockAnswerBtn) lockAnswerBtn.disabled = true;
+        $$('.answerBtn').forEach(b => b.disabled = true);
+      } else {
+        // still revealed & not eliminated — allow changes
+        if (!state.meEliminated && cur.phase === 'revealed') {
+          $$('.answerBtn').forEach(b => b.disabled = false);
+        }
+      }
+    });
+  }
+} else if (cur && (cur.phase === 'locked' || cur.phase === 'result')) {
+  // Once round is locked or scored, no more changes
+  state.meLocked = true;
+}
+
         percentTxt.textContent = (cur && typeof cur.percent === 'number') ? `${cur.percent}%` : '—';
         const pPercentEl = els('#pPercent');
         if (pPercentEl) pPercentEl.textContent =
@@ -1001,58 +1031,67 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
       });
     }
 
-    function renderAnswerButtons(cur){
-      answerBtns.innerHTML = '';
-      const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
-      ['A','B','C','D'].forEach((letter,i)=>{
-        const btn = document.createElement('button'); btn.className='answerBtn';
-        btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
-        btn.disabled = !canAnswer;
-        if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
-        answerBtns.appendChild(btn);
-      });
-      if (lockAnswerBtn) {
-        lockAnswerBtn.disabled = true; // re-disable until they answer
-      }
-    }
+   function renderAnswerButtons(cur){
+  answerBtns.innerHTML = '';
+  // can answer if revealed, not eliminated, and not already locked
+  const canAnswer = cur.phase === 'revealed' && !state.meEliminated && !state.meLocked;
 
-    // Client-side guard against late clicks; clearer error handling
-    async function submitAnswer(index){
-      const code = state.room; const cur = state.current;
-      if (!cur || cur.phase!=='revealed') return;
-      const nowMs = Date.now() + serverOffset;
-      if (typeof cur.deadline === 'number' && nowMs > cur.deadline) {
-        alert('Too late — time’s up!');
-        return;
-      }
-      const uid = auth.currentUser?.uid || state.uid;
-      if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
-      const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
-      try{
-        await set(ansRef, { index, at: nowMs });
-        $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
-        if (lockAnswerBtn) lockAnswerBtn.disabled = false; // allow locking now
-      }catch(err){
-        alert('Answer not accepted — timer likely expired.');
-        console.error(err);
-      }
-    }
+  ['A','B','C','D'].forEach((letter,i)=>{
+    const btn = document.createElement('button'); 
+    btn.className='answerBtn';
+    btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
+    btn.disabled = !canAnswer;
+    if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
+    answerBtns.appendChild(btn);
+  });
 
+  // If they haven't answered yet, keep lock disabled; enable after any selection (submitAnswer does that)
+  if (lockAnswerBtn) lockAnswerBtn.disabled = true;
+}
+    }
+    // Client-side guard against late clicks; allow changing until locked
+async function submitAnswer(index){
+  const code = state.room; ;
+  if (!cur || cur.phase!=='revealed') return;
+  if (state.meLocked) return; // can't change after you've locked
+
+  const nowMs = Date.now() + serverOffset;
+  if (typeof cur.deadline === 'number' && nowMs > cur.deadline) {
+    alert('Too late — time’s up!');
+    return;
+  }
+  const uid = auth.currentUser?.uid || state.uid;
+  if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
+
+  const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
+  try{
+    await set(ansRef, { index, at: nowMs });
+    // highlight current selection; keep buttons enabled for changes
+    $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); });
+    if (lockAnswerBtn) lockAnswerBtn.disabled = false; // allow locking now
+  }catch(err){
+    alert('Answer not accepted — timer likely expired.');
+    console.error(err);
+  }
+}
     async function lockMyAnswer(){
-      const code = state.room;
-      const cur  = state.current;
-      const uid  = auth.currentUser?.uid || state.uid;
+  const code = state.room;
+  const cur  = state.current;
+  const uid  = auth.currentUser?.uid || state.uid;
 
-      if (!cur || cur.phase !== 'revealed' || !uid) return;
-      const lockRef = ref(db, `rooms/${code}/locks/${cur.qid}/${uid}`);
-      try{
-        await set(lockRef, true);
-        if (lockAnswerBtn) lockAnswerBtn.disabled = true;
-      }catch(e){
-        console.error('Lock failed', e);
-        alert('Could not lock answer (maybe time is up?).');
-      }
-    }
+  if (!cur || cur.phase !== 'revealed' || !uid) return;
+  const lockRef = ref(db, `rooms/${code}/locks/${cur.qid}/${uid}`);
+  try{
+    await set(lockRef, true);
+    state.meLocked = true;
+    if (lockAnswerBtn) lockAnswerBtn.disabled = true;
+    // freeze the player’s controls after locking
+    $$('.answerBtn').forEach(b => b.disabled = true);
+  }catch(e){
+    console.error('Lock failed', e);
+    alert('Could not lock answer (maybe time is up?).');
+  }
+}
 
     if (lockAnswerBtn) lockAnswerBtn.addEventListener('click', lockMyAnswer);
 
