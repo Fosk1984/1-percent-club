@@ -955,7 +955,8 @@
             `;
             row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
           });
-        } else {
+        } 
+              else {
           const me = players[state.uid]||{};
           state.meEliminated = !!me.eliminated;
           eliminated.classList.toggle('hide', !state.meEliminated);
@@ -979,8 +980,8 @@
             });
           }
         }
-      });
-    }
+    });
+
 
     function renderAnswerButtons(cur){
       answerBtns.innerHTML = '';
