@@ -152,14 +152,12 @@
             </select>
           </div>
           <div class="row" style="margin-top:10px">
-            <button id="stageHiddenBtn">1) Arm question (hidden)</button>
             <button id="revealBtn" class="btn-acc">2) Reveal to players & start timer</button>
             <button id="lockBtn" class="btn-bad">3) Lock answers now</button>
             <button id="scoreBtn" class="btn-ok">4) Reveal correct & eliminate</button>
             <button id="nextBtn" class="btn-acc2">Next question</button>
           </div>
-          <div class="hint">Flow: Arm → Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
-        </div>
+          <div class="hint">Flow: Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
         <div class="card">
           <h2>Players</h2>
           <div id="playersList" class="list"></div>
@@ -526,18 +524,6 @@
       return qid;
     }
 
-    // Arm (manual)
-    stageHiddenBtn.addEventListener('click', async ()=>{
-      const code = state.room; if(!code) return;
-      const metaRef = ref(db, `rooms/${code}/meta`);
-      const metaSnap = await get(metaRef); const meta = metaSnap.val()||{};
-      const qid = (meta.qIndex||0)+1;
-      await update(metaRef, { qIndex: qid });
-      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null, stats:null });
-      qNumber.textContent = qid;
-      phaseTxt.textContent = 'hidden';
-    });
-
     // Reveal — percent derived from absolute progress unless bank overrides; also advance ladder here
     revealBtn.addEventListener('click', async ()=>{
       try{
@@ -633,22 +619,39 @@
     // Score button uses the shared function
     scoreBtn.addEventListener('click', scoreRound);
 
-    // Next — only arms the next slot & clears UI (ladder moves on Reveal now)
     nextBtn.addEventListener('click', async () => {
-      const code = state.room;
-      const metaSnap = await get(ref(db, `rooms/${code}/meta`));
-      const meta = metaSnap.val() || {};
-      const qid = (meta.qIndex || 0) + 1;
+  const code = state.room;
+  const metaSnap = await get(ref(db, `rooms/${code}/meta`));
+  const meta = metaSnap.val() || {};
+  const qid = (meta.qIndex || 0) + 1;
 
-      await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
-      await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null, stats: null });
+  await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
+  await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null, stats: null });
 
-      qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
-      correctIndex.value = '0';
-      state.stagedPercent = undefined;
-      state.stagedIndex = undefined;
-      // (Do not advance progressAbs here; Reveal will do it)
-    });
+  // If we have a bank, auto-stage the next one
+  if (state.bank.length && state.bankIndex < state.bank.length) {
+    const item = state.bank[state.bankIndex];
+    qPrompt.value = item.prompt;
+    opt0.value = item.options[0] || '';
+    opt1.value = item.options[1] || '';
+    opt2.value = item.options[2] || '';
+    opt3.value = item.options[3] || '';
+    correctIndex.value = String(item.correctIndex || 0);
+    answerWindow.value = String(item.seconds || 30);
+
+    state.stagedIndex = state.bankIndex;
+    state.stagedPercent = Number.isFinite(item.percent) ? item.percent : undefined;
+
+    state.bankIndex++;
+    bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
+  } else {
+    // fallback: blank fields
+    qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
+    correctIndex.value = '0';
+    state.stagedPercent = undefined;
+    state.stagedIndex = undefined;
+  }
+});
 
     // Copy invite
     copyInvite.addEventListener('click', async ()=>{
