@@ -364,21 +364,28 @@
     const eliminated = els('#eliminated');
     const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
-// ⬇️ Insert the checkpoint modal wiring right here
-// Modal elements
+// Modal elements (checkpoint)
 const checkpointModal = document.getElementById('checkpointModal');
 const cpAliveList = document.getElementById('cpAliveList');
 const cpOutList = document.getElementById('cpOutList');
 const closeCheckpointBtn = document.getElementById('closeCheckpointBtn');
 
-// Local guard so we don't show the same checkpoint twice
+// Final modal elements
+const finalModal = document.getElementById('finalModal');
+const closeFinalBtn = document.getElementById('closeFinalBtn');
+const finalTitle = document.getElementById('finalTitle');
+const finalLeftHdr = document.getElementById('finalLeftHdr');
+const finalRightHdr = document.getElementById('finalRightHdr');
+const finalLeftList = document.getElementById('finalLeftList');
+const finalRightList = document.getElementById('finalRightList');
+const finalSub = document.getElementById('finalSub');
+
+// Guards
 let shownCheckpointForQid = null;
 
-if (closeCheckpointBtn) {
-  closeCheckpointBtn.addEventListener('click', ()=> {
-    checkpointModal?.classList.add('hide');
-  });
-}
+if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
+if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
+
     
     // Question bank elements
     const bankText = els('#bankText');
