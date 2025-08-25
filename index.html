@@ -864,9 +864,28 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
       const code = state.room; if(!code) return;
 
       // meta
-      onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
-        const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
-      });
+     onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
+  const meta = snap.val()||{};
+  qNumber.textContent = meta.qIndex || 0;
+
+  // If the host ended the game, kick this client to the lobby
+  if (meta.ended) {
+    (async () => {
+      try {
+        // If I'm a player, mark myself not-present before leaving
+        if (!state.host && state.room && state.uid) {
+          await update(ref(db, `rooms/${state.room}/players/${state.uid}`), { present: false });
+        }
+      } catch (e) {
+        // non-fatal
+        console.warn('Failed to mark present:false before exit', e);
+      } finally {
+        // Hard reset back to landing/lobby
+        location.replace(location.origin + location.pathname);
+      }
+    })();
+  }
+});
 
       // current
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
