@@ -74,11 +74,10 @@
   <div class="shell">
     <h1>🧠 The 1% Club — Multiplayer</h1>
     <div id="landing" class="card">
-      <!-- Removed the “I'm the host” checkbox; kept the hint -->
       <div class="row">
+        <label class="pill"><input type="checkbox" id="isHostToggle">I'm the host</label>
         <span class="hint">GitHub Pages + Firebase (Anonymous sign-in). Room code sharing built-in.</span>
       </div>
-
       <div id="hostLanding" class="grid g2" style="margin-top:8px;">
         <div class="card">
           <h2>Host: create a room</h2>
@@ -153,12 +152,13 @@
             </select>
           </div>
           <div class="row" style="margin-top:10px">
+            <button id="stageHiddenBtn">1) Arm question (hidden)</button>
             <button id="revealBtn" class="btn-acc">2) Reveal to players & start timer</button>
             <button id="lockBtn" class="btn-bad">3) Lock answers now</button>
             <button id="scoreBtn" class="btn-ok">4) Reveal correct & eliminate</button>
             <button id="nextBtn" class="btn-acc2">Next question</button>
           </div>
-          <div class="hint">Flow: Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
+          <div class="hint">Flow: Arm → Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
         </div>
         <div class="card">
           <h2>Players</h2>
@@ -233,56 +233,6 @@
       </div>
     </div>
 
-    <!-- Checkpoint Recap Modal -->
-    <div id="checkpointModal" class="hide"
-         style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,0.85); z-index:9999;">
-      <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
-                  background:linear-gradient(180deg, rgba(20,20,30,0.95), rgba(10,10,15,0.95));
-                  border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.7)">
-        <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
-          <h2 style="margin:0">Checkpoint recap</h2>
-          <button id="closeCheckpointBtn">Close</button>
-        </div>
-        <div class="grid g2">
-          <div class="card" style="margin:0">
-            <h2 style="margin-top:0">Still in</h2>
-            <div id="cpAliveList" class="list"></div>
-          </div>
-          <div class="card" style="margin:0">
-            <h2 style="margin-top:0">Out</h2>
-            <div id="cpOutList" class="list"></div>
-          </div>
-        </div>
-        <div class="hint small" style="margin-top:8px">This shows players who were present at the time of the checkpoint.</div>
-      </div>
-    </div>
-
-    <!-- Final Recap Modal -->
-    <div id="finalModal" class="hide"
-         style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,0.85); z-index:9999;">
-      <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
-                  background:linear-gradient(180deg, rgba(20,20,30,0.95), rgba(10,10,15,0.95));
-                  border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.7)">
-        <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
-          <h2 id="finalTitle" style="margin:0">Game results</h2>
-          <button id="closeFinalBtn">Close</button>
-        </div>
-        <div class="grid g2">
-          <div class="card" style="margin:0">
-            <h2 style="margin-top:0" id="finalLeftHdr">Winner(s)</h2>
-            <div id="finalLeftList" class="list"></div>
-          </div>
-          <div class="card" style="margin:0">
-            <h2 style="margin-top:0" id="finalRightHdr">Others</h2>
-            <div id="finalRightList" class="list"></div>
-          </div>
-        </div>
-        <div id="finalSub" class="hint small" style="margin-top:8px"></div>
-      </div>
-    </div>
-
-  </div>
-
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
     import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
@@ -328,6 +278,7 @@
     // UI elements
     const landing = els('#landing');
     const hostLanding = els('#hostLanding');
+    const isHostToggle = els('#isHostToggle');
     const hostRoomCode = els('#hostRoomCode');
     const playerLimitEl = els('#playerLimit');
     const createRoomBtn = els('#createRoomBtn');
@@ -354,6 +305,7 @@
     const opt3 = els('#opt3');
     const correctIndex = els('#correctIndex');
     const answerWindow = els('#answerWindow');
+    const stageHiddenBtn = els('#stageHiddenBtn');
     const revealBtn = els('#revealBtn');
     const lockBtn = els('#lockBtn');
     const scoreBtn = els('#scoreBtn');
@@ -371,28 +323,6 @@
     const msg = els('#msg');
     const eliminated = els('#eliminated');
     const lockAnswerBtn = document.getElementById('lockAnswerBtn');
-
-    // Modal elements (checkpoint)
-    const checkpointModal = document.getElementById('checkpointModal');
-    const cpAliveList = document.getElementById('cpAliveList');
-    const cpOutList = document.getElementById('cpOutList');
-    const closeCheckpointBtn = document.getElementById('closeCheckpointBtn');
-
-    // Final modal elements
-    const finalModal = document.getElementById('finalModal');
-    const closeFinalBtn = document.getElementById('closeFinalBtn');
-    const finalTitle = document.getElementById('finalTitle');
-    const finalLeftHdr = document.getElementById('finalLeftHdr');
-    const finalRightHdr = document.getElementById('finalRightHdr');
-    const finalLeftList = document.getElementById('finalLeftList');
-    const finalRightList = document.getElementById('finalRightList');
-    const finalSub = document.getElementById('finalSub');
-
-    // Guards
-    let shownCheckpointForQid = null;
-
-    if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
-    if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
 
     // Question bank elements
     const bankText = els('#bankText');
@@ -518,6 +448,12 @@
       await signInAnonymously(auth);
     });
 
+    // Landing toggle
+    isHostToggle.addEventListener('change', ()=>{
+      state.host = isHostToggle.checked;
+      hostLanding.classList.toggle('hide', !state.host);
+    });
+
     // Create room
     createRoomBtn.addEventListener('click', async ()=>{
       const code = (hostRoomCode.value || genCode()).toUpperCase();
@@ -590,6 +526,18 @@
       return qid;
     }
 
+    // Arm (manual)
+    stageHiddenBtn.addEventListener('click', async ()=>{
+      const code = state.room; if(!code) return;
+      const metaRef = ref(db, `rooms/${code}/meta`);
+      const metaSnap = await get(metaRef); const meta = metaSnap.val()||{};
+      const qid = (meta.qIndex||0)+1;
+      await update(metaRef, { qIndex: qid });
+      await set(ref(db,`rooms/${code}/current`), { phase:'hidden', qid, prompt:null, choices:null, stats:null });
+      qNumber.textContent = qid;
+      phaseTxt.textContent = 'hidden';
+    });
+
     // Reveal — percent derived from absolute progress unless bank overrides; also advance ladder here
     revealBtn.addEventListener('click', async ()=>{
       try{
@@ -644,25 +592,13 @@
       await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
     });
 
-    // Utility: who is alive right now
-    async function getAliveUids(code){
-      const playersSnap = await get(ref(db, `rooms/${code}/players`));
-      const players = playersSnap.exists() ? playersSnap.val() : {};
-      return Object.entries(players)
-        .filter(([,p]) => p.present && !p.eliminated)
-        .map(([uid]) => uid);
-    }
-
-    // ===== Scoring (with end-of-game + final recap) =====
+    // ===== Scoring (refactored) =====
     async function scoreRound(){
       const code = state.room;
       const currentRef = ref(db, `rooms/${code}/current`);
       const curSnap = await get(currentRef);
       const cur = curSnap.val();
       if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
-
-      // Who was alive BEFORE scoring (used if everyone drops out)
-      const aliveBefore = await getAliveUids(code);
 
       const cIdx = parseInt(correctIndex.value, 10);
       await update(currentRef, { phase: 'result', correctIndex: cIdx });
@@ -692,75 +628,13 @@
         if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
       }
       await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
-
-      // Decide if game is over
-      const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
-      const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
-      const aliveAfter = Object.entries(playersAfter)
-        .filter(([,p]) => p.present && !p.eliminated)
-        .map(([uid]) => uid);
-
-      // We advance progress on Reveal; if we've just shown the last banked question, bankDone = true
-      const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
-
-      if (aliveAfter.length === 0) {
-    const summary = { winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid, at: Date.now() + serverOffset };
-    await set(ref(db, `rooms/${code}/final`), summary);
-    await showFinalRecap(summary);
-    } else if (bankDone && cur.phase === 'result') {
-     const summary = { winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid, at: Date.now() + serverOffset };
-    await set(ref(db, `rooms/${code}/final`), summary);
-    await showFinalRecap(summary);
- }
-
-
-    // Helpers for final recap rendering
-    async function namesFromUids(code, uidList){
-      if (!uidList?.length) return [];
-      const playersSnap = await get(ref(db, `rooms/${code}/players`));
-      const players = playersSnap.exists() ? playersSnap.val() : {};
-      return uidList.map(uid => (players[uid]?.name || 'Player'));
-    }
-
-    async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = null } = {}){
-      const code = state.room;
-      const winnerNames = await namesFromUids(code, winners);
-      const lastNames = await namesFromUids(code, lastRemaining);
-
-      const hadWinners = winnerNames.length > 0;
-
-      finalTitle.textContent = hadWinners ? 'Final results — Winner(s)' : 'Final results — No winners';
-      finalLeftHdr.textContent = hadWinners ? 'Winner(s)' : 'Last remaining';
-      finalRightHdr.textContent = hadWinners ? 'Everyone else' : 'Others';
-
-      finalLeftList.innerHTML = (hadWinners ? winnerNames : lastNames).length
-        ? (hadWinners ? winnerNames : lastNames).map(n => `<div class="row"><span class="tag">🏆</span><div>${n}</div></div>`).join('')
-        : '<div class="muted small">—</div>';
-
-      const playersSnap = await get(ref(db, `rooms/${code}/players`));
-      const players = playersSnap.exists() ? playersSnap.val() : {};
-      const others = Object.values(players).map(p => p?.name || 'Player')
-        .filter(n => !(hadWinners ? winnerNames : lastNames).includes(n));
-
-      finalRightList.innerHTML = others.length
-        ? others.map(n => `<div class="row"><span class="tag">🎮</span><div>${n}</div></div>`).join('')
-        : '<div class="muted small">—</div>';
-
-      finalSub.textContent = hadWinners
-        ? 'Game ended with at least one player still in.'
-        : (lastDropQid ? `Everyone dropped out on question #${lastDropQid}.` : 'Everyone was eliminated on the final question.');
-
-      finalModal?.classList.remove('hide');
     }
 
     // Score button uses the shared function
     scoreBtn.addEventListener('click', scoreRound);
 
-    // Next — arms next slot & auto-stages from bank if present
+    // Next — only arms the next slot & clears UI (ladder moves on Reveal now)
     nextBtn.addEventListener('click', async () => {
-      checkpointModal?.classList.add('hide');
-      finalModal?.classList.add('hide');
-      await set(ref(db, `rooms/${state.room}/final`), null);
       const code = state.room;
       const metaSnap = await get(ref(db, `rooms/${code}/meta`));
       const meta = metaSnap.val() || {};
@@ -769,27 +643,11 @@
       await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
       await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null, stats: null });
 
-      if (state.bank.length && state.bankIndex < state.bank.length) {
-        const item = state.bank[state.bankIndex];
-        qPrompt.value = item.prompt;
-        opt0.value = item.options[0] || '';
-        opt1.value = item.options[1] || '';
-        opt2.value = item.options[2] || '';
-        opt3.value = item.options[3] || '';
-        correctIndex.value = String(item.correctIndex || 0);
-        answerWindow.value = String(item.seconds || 30);
-
-        state.stagedIndex = state.bankIndex;
-        state.stagedPercent = Number.isFinite(item.percent) ? item.percent : undefined;
-
-        state.bankIndex++;
-        bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
-      } else {
-        qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
-        correctIndex.value = '0';
-        state.stagedPercent = undefined;
-        state.stagedIndex = undefined;
-      }
+      qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
+      correctIndex.value = '0';
+      state.stagedPercent = undefined;
+      state.stagedIndex = undefined;
+      // (Do not advance progressAbs here; Reveal will do it)
     });
 
     // Copy invite
@@ -808,6 +666,7 @@
 
       onValue(ref(db, `rooms/${code}/current`), (snap) => {
         const cur = snap.val() || {};
+        // Clean previous listener
         if (locksUnsub) { locksUnsub(); locksUnsub = null; }
 
         if (cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
@@ -834,7 +693,7 @@
       ]);
 
       const cur = curSnap.val() || {};
-      if (cur.phase !== 'revealed') return;
+      if (cur.phase !== 'revealed') return; // already moved on
 
       const players = playersSnap.exists() ? playersSnap.val() : {};
       const aliveUids = Object.entries(players)
@@ -845,6 +704,7 @@
       const lockCount = aliveUids.filter(uid => locks[uid] === true).length;
 
       if (aliveUids.length === 0 || lockCount >= aliveUids.length) {
+        // CAS guard: only if still in 'revealed'
         const phaseRef = ref(db, `rooms/${code}/current/phase`);
         const phaseNow = (await get(phaseRef)).val();
         if (phaseNow === 'revealed') {
@@ -889,8 +749,6 @@
             ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
             : null;
           renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
-          maybeShowCheckpointRecapIfNeeded(cur);
-
         }
 
         if (!state.host){
@@ -908,7 +766,6 @@
             if (cur.phase === 'result') {
               renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
               revealCorrect(cur);
-              maybeShowCheckpointRecapIfNeeded(cur);
             } else {
               resultsPlayer.innerHTML = '';
             }
@@ -933,17 +790,11 @@
         aliveCount.textContent = alive;
 
         if (state.host){
+          // Sort: alive+present first, then eliminated/offline
           const sorted = entries.sort(([,a],[,b])=>{
             const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); // 3=alive,1=present-elim,0=offline
             return rank(b) - rank(a);
           });
-
-          onValue(ref(db, `rooms/${code}/final`), async (snap) => {
-        const v = snap.val();
-        if (!v) return;
-        await showFinalRecap(v);
-      });
-  }       
           playersList.innerHTML = '';
           sorted.forEach(([uid,p])=>{
             const row = document.createElement('div'); row.className='row';
@@ -955,8 +806,8 @@
             `;
             row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
           });
-        } 
-              else {
+        } else {
+          // Update my eliminated banner + render roster for players
           const me = players[state.uid]||{};
           state.meEliminated = !!me.eliminated;
           eliminated.classList.toggle('hide', !state.meEliminated);
@@ -980,8 +831,8 @@
             });
           }
         }
-    });
-
+      });
+    }
 
     function renderAnswerButtons(cur){
       answerBtns.innerHTML = '';
@@ -1057,47 +908,6 @@
       tick(); state.timerInt = setInterval(tick, 200);
     }
     function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
-
-    // Show checkpoint recap when a result lands on a checkpoint index
-    async function maybeShowCheckpointRecapIfNeeded(curObj) {
-      if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
-
-      // The just-finished question index inside the current 10-pack
-      const within = (curObj.qid - 1) % 10;
-
-      // Use the ladder's checkpoints set if available; fallback to [4,7]
-      const isCheckpointIndex = ladder?.checkpoints?.has
-        ? ladder.checkpoints.has(within)
-        : [4,7].includes(within);
-      if (!isCheckpointIndex) return;
-
-      // Avoid re-showing for the same qid
-      if (shownCheckpointForQid === curObj.qid) return;
-      shownCheckpointForQid = curObj.qid;
-
-      // Build lists
-      const code = state.room;
-      const playersSnap = await get(ref(db, `rooms/${code}/players`));
-      const players = playersSnap.exists() ? playersSnap.val() : {};
-
-      const alive = [];
-      const out = [];
-      for (const p of Object.values(players)) {
-        if (!p || !p.name) continue;
-        if (p.present && !p.eliminated) alive.push(p.name);
-        else out.push(p.name || 'Player');
-      }
-
-      cpAliveList.innerHTML = alive.length
-        ? alive.map(n => `<div class='row'><span class='tag'>✅ in</span><div>${n}</div></div>`).join('')
-        : '<div class="muted small">No one is currently in.</div>';
-
-      cpOutList.innerHTML = out.length
-        ? out.map(n => `<div class='row'><span class='tag'>❌ out</span><div>${n}</div></div>`).join('')
-        : '<div class="muted small">No one is out yet.</div>';
-
-      checkpointModal?.classList.remove('hide');
-    }
 
     function renderResults(container, countsArr, total, correctIdx){
       if(!container) return;
