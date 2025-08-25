@@ -227,6 +227,30 @@
       </div>
     </div>
 
+      <!-- Checkpoint Recap Modal -->
+<div id="checkpointModal" class="hide"
+     style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
+  <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
+              background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.12));
+              border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
+      <h2 style="margin:0">Checkpoint recap</h2>
+      <button id="closeCheckpointBtn">Close</button>
+    </div>
+    <div class="grid g2">
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0">Still in</h2>
+        <div id="cpAliveList" class="list"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0">Out</h2>
+        <div id="cpOutList" class="list"></div>
+      </div>
+    </div>
+    <div class="hint small" style="margin-top:8px">This shows players who were present at the time of the checkpoint.</div>
+  </div>
+</div>
+
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
     import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
