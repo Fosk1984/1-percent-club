@@ -385,7 +385,20 @@ const finalSub = document.getElementById('finalSub');
 let shownCheckpointForQid = null;
 
 if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
-if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
+if (closeFinalBtn) closeFinalBtn.addEventListener('click', async ()=>{
+  // Hide locally
+  finalModal?.classList.add('hide');
+
+  // If I'm the host, end the game globally
+  if (state.host && state.room) {
+    try {
+      await update(ref(db, `rooms/${state.room}/meta`), { ended: true, allowJoin: false });
+    } catch (e) {
+      console.error('Failed to end game:', e);
+      alert('Could not end the game. Try again.');
+    }
+  }
+});
 
     
     // Question bank elements
