@@ -638,43 +638,110 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
       await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
     });
 
-    // ===== Scoring (refactored) =====
-    async function scoreRound(){
-      const code = state.room;
-      const currentRef = ref(db, `rooms/${code}/current`);
-      const curSnap = await get(currentRef);
-      const cur = curSnap.val();
-      if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
+  // Utility: who is alive right now
+async function getAliveUids(code){
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+  return Object.entries(players)
+    .filter(([,p]) => p.present && !p.eliminated)
+    .map(([uid]) => uid);
+}
 
-      const cIdx = parseInt(correctIndex.value, 10);
-      await update(currentRef, { phase: 'result', correctIndex: cIdx });
+// ===== Scoring (refactored with end-of-game + final recap) =====
+async function scoreRound(){
+  const code = state.room;
+  const currentRef = ref(db, `rooms/${code}/current`);
+  const curSnap = await get(currentRef);
+  const cur = curSnap.val();
+  if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
 
-      const [ansSnap, playersSnap] = await Promise.all([
-        get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
-        get(ref(db, `rooms/${code}/players`))
-      ]);
+  // Who was alive BEFORE scoring (used if everyone drops out)
+  const aliveBefore = await getAliveUids(code);
 
-      const answers = ansSnap.exists() ? ansSnap.val() : {};
-      const players = playersSnap.exists() ? playersSnap.val() : {};
+  const cIdx = parseInt(correctIndex.value, 10);
+  await update(currentRef, { phase: 'result', correctIndex: cIdx });
 
-      // Eliminate wrong / no-answer
-      const updates = {};
-      for (const [uid, p] of Object.entries(players)) {
-        if (!(p.present && !p.eliminated)) continue;
-        const a = answers[uid];
-        const wrongOrMissing = !a || a.index !== cIdx;
-        if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
-      }
-      if (Object.keys(updates).length) await update(ref(db), updates);
+  const [ansSnap, playersSnap] = await Promise.all([
+    get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
+    get(ref(db, `rooms/${code}/players`))
+  ]);
 
-      // Aggregate results
-      const counts = [0, 0, 0, 0];
-      let total = 0;
-      for (const a of Object.values(answers)) {
-        if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
-      }
-      await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
-    }
+  const answers = ansSnap.exists() ? ansSnap.val() : {};
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+
+  // Eliminate wrong / no-answer
+  const updates = {};
+  for (const [uid, p] of Object.entries(players)) {
+    if (!(p.present && !p.eliminated)) continue;
+    const a = answers[uid];
+    const wrongOrMissing = !a || a.index !== cIdx;
+    if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
+  }
+  if (Object.keys(updates).length) await update(ref(db), updates);
+
+  // Aggregate results
+  const counts = [0, 0, 0, 0];
+  let total = 0;
+  for (const a of Object.values(answers)) {
+    if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
+  }
+  await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
+
+  // Decide if game is over
+  const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
+  const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
+  const aliveAfter = Object.entries(playersAfter)
+    .filter(([,p]) => p.present && !p.eliminated)
+    .map(([uid]) => uid);
+
+  // We advance progress on Reveal; if we've just shown the last banked question, bankDone = true
+  const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
+
+  if (aliveAfter.length === 0) {
+    await showFinalRecap({ winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid });
+  } else if (bankDone && cur.phase === 'result') {
+    await showFinalRecap({ winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid });
+  }
+}
+
+// Helpers for final recap rendering
+async function namesFromUids(code, uidList){
+  if (!uidList?.length) return [];
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+  return uidList.map(uid => (players[uid]?.name || 'Player'));
+}
+
+async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = null } = {}){
+  const code = state.room;
+  const winnerNames = await namesFromUids(code, winners);
+  const lastNames = await namesFromUids(code, lastRemaining);
+
+  const hadWinners = winnerNames.length > 0;
+
+  finalTitle.textContent = hadWinners ? 'Final results — Winner(s)' : 'Final results — No winners';
+  finalLeftHdr.textContent = hadWinners ? 'Winner(s)' : 'Last remaining';
+  finalRightHdr.textContent = hadWinners ? 'Everyone else' : 'Others';
+
+  finalLeftList.innerHTML = (hadWinners ? winnerNames : lastNames).length
+    ? (hadWinners ? winnerNames : lastNames).map(n => `<div class="row"><span class="tag">🏆</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">—</div>';
+
+  const playersSnap = await get(ref(db, `rooms/${code}/players`));
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+  const others = Object.values(players).map(p => p?.name || 'Player')
+    .filter(n => !(hadWinners ? winnerNames : lastNames).includes(n));
+
+  finalRightList.innerHTML = others.length
+    ? others.map(n => `<div class="row"><span class="tag">🎮</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">—</div>';
+
+  finalSub.textContent = hadWinners
+    ? 'Game ended with at least one player still in.'
+    : (lastDropQid ? `Everyone dropped out on question #${lastDropQid}.` : 'Everyone was eliminated on the final question.');
+
+  finalModal?.classList.remove('hide');
+}
 
     // Score button uses the shared function
     scoreBtn.addEventListener('click', scoreRound);
@@ -972,31 +1039,31 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
       };
       tick(); state.timerInt = setInterval(tick, 200);
     }
-    function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
+    function stopTimer()
+    { if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
 
+// Show checkpoint recap when a result lands on a checkpoint index
 async function maybeShowCheckpointRecapIfNeeded(curObj) {
-  // Only when we've finished a question
   if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
 
-  // Your ladder advances on Reveal; the just-finished question is (state.progressAbs - 1).
-  // Within-chunk index is 0..9; checkpoints by default are [4,7] on the ladder instance.
+  // The just-finished question index inside the current 10-pack
   const within = (state.progressAbs - 1) % 10;
-  const isCheckpointIndex = ladder?.checkpoints?.has
-    ? ladder.checkpoints.has(within)         // if Set (as in your class)
-    : [4,7].includes(within);                // fallback
 
+  // Use the ladder's checkpoints set if available; fallback to [4,7]
+  const isCheckpointIndex = ladder?.checkpoints?.has
+    ? ladder.checkpoints.has(within)
+    : [4,7].includes(within);
   if (!isCheckpointIndex) return;
 
   // Avoid re-showing for the same qid
   if (shownCheckpointForQid === curObj.qid) return;
   shownCheckpointForQid = curObj.qid;
 
-  // Load current players
+  // Build lists
   const code = state.room;
   const playersSnap = await get(ref(db, `rooms/${code}/players`));
   const players = playersSnap.exists() ? playersSnap.val() : {};
 
-  // Partition by present + eliminated
   const alive = [];
   const out = [];
   for (const p of Object.values(players)) {
@@ -1005,21 +1072,17 @@ async function maybeShowCheckpointRecapIfNeeded(curObj) {
     else out.push(p.name || 'Player');
   }
 
-  // Render lists
-  if (cpAliveList) {
-    cpAliveList.innerHTML = alive.length
-      ? alive.map(n => `<div class="row"><span class="tag">✅ in</span><div>${n}</div></div>`).join('')
-      : '<div class="muted small">No one is currently in.</div>';
-  }
-  if (cpOutList) {
-    cpOutList.innerHTML = out.length
-      ? out.map(n => `<div class="row"><span class="tag">❌ out</span><div>${n}</div></div>`).join('')
-      : '<div class="muted small">No one is out yet.</div>';
-  }
+  cpAliveList.innerHTML = alive.length
+    ? alive.map(n => `<div class='row'><span class='tag'>✅ in</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">No one is currently in.</div>';
 
-  // Show modal (host and players)
+  cpOutList.innerHTML = out.length
+    ? out.map(n => `<div class='row'><span class='tag'>❌ out</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">No one is out yet.</div>';
+
   checkpointModal?.classList.remove('hide');
 }
+
     
     function renderResults(container, countsArr, total, correctIdx){
       if(!container) return;
