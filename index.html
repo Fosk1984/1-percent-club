@@ -893,8 +893,8 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
         state.current = snap.val()||{};
         const cur = state.current;
-       // Reset local answer/lock state when a new question is revealed
-if (cur.phase === 'revealed' && cur.qid) {
+      // Reset local answer/lock state when a new question is revealed
+if (!state.host && cur && cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
   state.meLocked = false;
   state.myAnswerIndex = null;
 }
