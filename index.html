@@ -164,10 +164,13 @@
       <div class="grid g2">
         <div class="card">
           <h2>Live question</h2>
-          <div class="row">
-            <div class="pill">Phase: <span id="phaseTxt">—</span></div>
-            <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
-            <div class="pill">Percent: <span id="percentTxt">—</span></div>
+            <div class="row">
+  <div class="pill">Phase: <span id="phaseTxt">—</span></div>
+  <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
+  <div class="pill">Percent: <span id="percentTxt">—</span></div>
+  <div class="pill">Answered: <span id="answeredCount">0/0</span></div>
+  <div class="pill">Locked: <span id="lockedCount">0/0</span></div>
+</div>
           </div>
           <div id="livePrompt" class="big" style="margin-top:8px">—</div>
           <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
@@ -395,6 +398,14 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
     const bankCount = els('#bankCount');
     const bankNext = els('#bankNext');
     const percentTxt = els('#percentTxt');
+    const answeredCountEl = els('#answeredCount');
+    const lockedCountEl   = els('#lockedCount');
+    // --- Live caches for answer/lock counters (not in `state`)
+    let latestPlayers = {};          // updated by the /players listener
+    let answersUnsubForQ = null;     // unsubscribe fns for the active qid
+    let locksUnsubForQ   = null;
+
+    
 
     // ===== Percent Ladder component =====
     class PercentLadder {
@@ -793,6 +804,62 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
     // ===== Auto-score when everyone locked =====
     let locksUnsub = null;
 
+function attachAnswerLockCounters(cur) {
+  // Clean up old listeners
+  if (answersUnsubForQ) { answersUnsubForQ(); answersUnsubForQ = null; }
+  if (locksUnsubForQ)   { locksUnsubForQ();   locksUnsubForQ   = null; }
+
+  // Only track during an active question with a qid
+  if (!cur || !Number.isInteger(cur.qid)) return;
+
+  const code = state.room;
+  const qid  = cur.qid;
+
+  // Helper to compute alive UIDs from latestPlayers
+  const aliveUids = Object.entries(latestPlayers)
+    .filter(([,p]) => p && p.present && !p.eliminated)
+    .map(([uid]) => uid);
+
+  const aliveTotal = aliveUids.length;
+
+  // Answers subscription
+  const ansRef = ref(db, `rooms/${code}/answers/${qid}`);
+  const offAns = onValue(ansRef, (snap) => {
+    const answers = snap.exists() ? snap.val() : {};
+    const answered = aliveUids.filter(uid => answers[uid] && Number.isInteger(answers[uid].index)).length;
+    if (answeredCountEl) answeredCountEl.textContent = `${answered}/${aliveTotal}`;
+  });
+
+  // Locks subscription
+  const locksRef = ref(db, `rooms/${code}/locks/${qid}`);
+  const offLocks = onValue(locksRef, (snap) => {
+    const locks = snap.exists() ? snap.val() : {};
+    const locked = aliveUids.filter(uid => locks[uid] === true).length;
+    if (lockedCountEl) lockedCountEl.textContent = `${locked}/${aliveTotal}`;
+
+    // Nice UX: when everyone is locked, hint by pulsing / enabling the host Lock or Score button
+    if (state.host) {
+      // If host likes to lock early, we can visually nudge:
+      const allLocked = locked >= aliveTotal && aliveTotal > 0;
+      if (allLocked) {
+        // If still in 'revealed', the host can skip manual lock (auto-score will run),
+        // but we also style the Score button to stand out.
+        scoreBtn?.classList.add('btn-ok');
+      } else {
+        scoreBtn?.classList.remove('btn-ok');
+      }
+    }
+  });
+
+  // Keep references to unsubscribe on next qid
+  answersUnsubForQ = offAns;
+  locksUnsubForQ   = offLocks;
+
+  // Initialize counts to 0/alive while data loads
+  if (answeredCountEl) answeredCountEl.textContent = `0/${aliveTotal}`;
+  if (lockedCountEl)   lockedCountEl.textContent   = `0/${aliveTotal}`;
+}
+
     function listenForAutoScore(){
       if (!state.host) return;
       const code = state.room; if (!code) return;
@@ -859,6 +926,7 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
         state.current = snap.val()||{};
         const cur = state.current;
+        attachAnswerLockCounters(cur);
         percentTxt.textContent = (cur && typeof cur.percent === 'number') ? `${cur.percent}%` : '—';
         const pPercentEl = els('#pPercent');
         if (pPercentEl) pPercentEl.textContent =
@@ -920,6 +988,7 @@ async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = 
       // players
       onValue(ref(db,`rooms/${code}/players`), (snap)=>{
         const players = snap.val()||{};
+        latestPlayers = players;
         const entries = Object.entries(players);
         const alive = entries.filter(([,p])=>p.present && !p.eliminated).length;
         aliveCount.textContent = alive;
