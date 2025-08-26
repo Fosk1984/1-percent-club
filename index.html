@@ -577,6 +577,7 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
     }
     function enterPlayer(){
       landing.classList.add('hide');
+      hostUI.classList.remove('hide');
       playerUI.classList.remove('hide');
       roomCodePlayer.textContent = state.room;
       meName.textContent = state.me?.name || '';
