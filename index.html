@@ -68,6 +68,14 @@
     .pl-step[data-checkpoint="true"]::after{content:"";position:absolute;right:10px;top:50%;transform:translateY(-50%);width:.55rem;height:.55rem;border-radius:50%;background:var(--acc2);box-shadow:0 0 8px rgba(255,211,106,.8)}
     .pct{font:600 14px/1 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
     .tag{margin-left:auto;font:500 11px/1 ui-sans-serif,system-ui;letter-spacing:.03em;color:var(--muted)}
+
+    /* Role guard: only show hostUI when body.has .is-host; only show playerUI otherwise */
+#hostUI{display:none;}
+#playerUI{display:block;}
+body.is-host #hostUI{display:block;}
+body.is-host #playerUI{display:none;}
+
+    
   </style>
 </head>
 <body>
@@ -568,6 +576,7 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
     });
 
     function enterHost(){
+      document.body.classList.add('is-host');
       landing.classList.add('hide');
       hostUI.classList.remove('hide');
       roomCodeHost.textContent = state.room;
@@ -576,6 +585,7 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
       syncLadderToProgress(); // keep ladder in sync from the start
     }
     function enterPlayer(){
+      document.body.classList.remove('is-host');
       landing.classList.add('hide');
       hostUI.classList.remove('hide');
       playerUI.classList.remove('hide');
