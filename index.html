@@ -169,34 +169,37 @@ body.is-host #playerUI{display:none;}
         </div>
       </div>
 
-      <div class="grid g2">
-        <div class="card">
-          <h2>Live question</h2>
-            <div class="row">
-  <div class="pill">Phase: <span id="phaseTxt">—</span></div>
-  <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
-  <div class="pill">Percent: <span id="percentTxt">—</span></div>
-  <div class="pill">Answered: <span id="answeredCount">0/0</span></div>
-  <div class="pill">Locked: <span id="lockedCount">0/0</span></div>
-</div>
-          </div>
-          <div id="livePrompt" class="big" style="margin-top:8px">—</div>
-          <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
-          <div id="hostResults" style="margin-top:10px"></div>
-        </div>
+     <div class="grid g2">
+  <!-- Live question (fixed nesting) -->
+  <div class="card">
+    <h2>Live question</h2>
+    <div class="row">
+      <div class="pill">Phase: <span id="phaseTxt">—</span></div>
+      <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
+      <div class="pill">Percent: <span id="percentTxt">—</span></div>
+      <div class="pill">Answered: <span id="answeredCount">0/0</span></div>
+      <div class="pill">Locked: <span id="lockedCount">0/0</span></div>
+    </div>
 
-        <!-- Percent Ladder panel -->
-        <div class="card">
-          <h2>Percent Ladder</h2>
-          <div id="ladder" class="percent-ladder" role="group" aria-label="Percent ladder">
-            <div class="hdr">This 10-Q chunk</div>
-            <div class="pl-steps" aria-live="polite"></div>
-          </div>
-          <div class="hint small" style="margin-top:8px">
-            Uses <code>percent</code> from your bank (if present). Otherwise maps chunk index to [90,80,…,1].
-          </div>
-        </div>
-      </div>
+    <!-- These three MUST be inside the same .card -->
+    <div id="livePrompt" class="big" style="margin-top:8px">—</div>
+    <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
+    <div id="hostResults" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Percent Ladder panel -->
+  <div class="card">
+    <h2>Percent Ladder</h2>
+    <div id="ladder" class="percent-ladder" role="group" aria-label="Percent ladder">
+      <div class="hdr">This 10-Q chunk</div>
+      <div class="pl-steps" aria-live="polite"></div>
+    </div>
+    <div class="hint small" style="margin-top:8px">
+      Uses <code>percent</code> from your bank (if present). Otherwise maps chunk index to [90,80,…,1].
+    </div>
+  </div>
+</div>
+
 
       <div class="card">
         <h2>Question bank</h2>
