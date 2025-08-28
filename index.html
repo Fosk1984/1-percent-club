@@ -103,8 +103,16 @@ body.is-host #playerUI{display:none;}
 <body>
   <div class="shell">
     <h1>🧠 The 1% Club — Multiplayer</h1>
+    <!-- Front door / hero -->
+<div id="frontDoor" class="card">
+  <div class="overlay">
+    <button id="bigPlay">▶ Play</button>
+  </div>
+  <button id="hostShortcut">Host</button>
+</div>
     <div id="landing" class="card">
       <div id="hostLanding" class="grid g2" style="margin-top:8px;">
+         <div id="hostCard" class="card">
         <div class="card">
           <h2>Host: create a room</h2>
           <div class="grid g2">
@@ -123,6 +131,7 @@ body.is-host #playerUI{display:none;}
           </div>
         </div>
         <div class="card">
+        <div id="playerCard" class="card">
           <h2>Players: join a room</h2>
           <div class="grid g2">
             <div>
@@ -401,6 +410,15 @@ body.is-host #playerUI{display:none;}
     const eliminated = els('#eliminated');
     const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
+    // Front door elements
+const frontDoor = document.getElementById('frontDoor');
+const bigPlay = document.getElementById('bigPlay');
+const hostShortcut = document.getElementById('hostShortcut');
+
+// Landing sections
+const hostCard = document.getElementById('hostCard');
+const playerCard = document.getElementById('playerCard');
+
 // Modal elements (checkpoint)
 const checkpointModal = document.getElementById('checkpointModal');
 const cpAliveList = document.getElementById('cpAliveList');
@@ -417,11 +435,40 @@ const finalLeftList = document.getElementById('finalLeftList');
 const finalRightList = document.getElementById('finalRightList');
 const finalSub = document.getElementById('finalSub');
 
+function showPlayerJoin(){
+  // Show landing with only player card visible
+  frontDoor?.classList.add('hide');
+  landing?.classList.remove('hide');
+  hostCard?.classList.add('hide');
+  playerCard?.classList.remove('hide');
+  // scroll into view nicety
+  landing?.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function showHostCreate(){
+  // Show landing with only host card visible
+  frontDoor?.classList.add('hide');
+  landing?.classList.remove('hide');
+  playerCard?.classList.add('hide');
+  hostCard?.classList.remove('hide');
+  landing?.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+const params = new URLSearchParams(location.search);
+const mode = params.get('mode');
+if (mode === 'host') showHostCreate();
+else if (mode === 'play') showPlayerJoin();
+
+    
 // Guards
 let shownCheckpointForQid = null;
 
 if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
 if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
+
+if (bigPlay) bigPlay.addEventListener('click', showPlayerJoin);
+if (hostShortcut) hostShortcut.addEventListener('click', showHostCreate);
+
 
     
     // Question bank elements
