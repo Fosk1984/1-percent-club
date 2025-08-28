@@ -109,10 +109,14 @@ body.is-host #playerUI{display:none;}
   </div>
   <button id="hostShortcut">Host</button>
 </div>
-    <div id="landing" class="card">
+    <div id="landing" class="card hide">
       <div id="hostLanding" class="grid g2" style="margin-top:8px;">
-         <div id="hostCard" class="card">
-        <div class="card">
+         <div class="card" id="hostCreateCard">
+         </div>
+       <div class="card" id="playerJoinCard"> 
+     </div>
+  </div>
+</div>
           <h2>Host: create a room</h2>
           <div class="grid g2">
             <div>
@@ -423,6 +427,13 @@ body.is-host #playerUI{display:none;}
     const qArea = els('#qArea');
     const msg = els('#msg');
     const eliminated = els('#eliminated');
+    // Splash + landing panel refs
+const frontDoor = els('#frontDoor');
+const playBtn = els('#playBtn');
+const hostBtn = els('#hostBtn');
+const hostCreateCard = els('#hostCreateCard');
+const playerJoinCard = els('#playerJoinCard');
+
     const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
     // Front door elements
@@ -449,6 +460,30 @@ const finalRightHdr = document.getElementById('finalRightHdr');
 const finalLeftList = document.getElementById('finalLeftList');
 const finalRightList = document.getElementById('finalRightList');
 const finalSub = document.getElementById('finalSub');
+
+    if (playBtn) {
+  playBtn.addEventListener('click', () => {
+    homeSplash?.classList.add('hide');       // hide splash
+    landing?.classList.remove('hide');       // show landing
+    // show only the player join card
+    hostCreateCard?.classList.add('hide');
+    playerJoinCard?.classList.remove('hide');
+    // focus the join code for convenience
+    joinCode?.focus();
+  });
+}
+
+if (hostBtn) {
+  hostBtn.addEventListener('click', () => {
+    homeSplash?.classList.add('hide');       // hide splash
+    landing?.classList.remove('hide');       // show landing
+    // show only the host create card
+    hostCreateCard?.classList.remove('hide');
+    playerJoinCard?.classList.add('hide');
+    hostRoomCode?.focus();
+  });
+}
+
 
 function showPlayerJoin(){
   // Show landing with only player card visible
