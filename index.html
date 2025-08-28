@@ -347,6 +347,22 @@ body.is-host #playerUI{display:none;}
 
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
+    
+    // --- BG image probe (helps debug path issues) ---
+(function(){
+  const testSrc = './assets/front-bg.jpg';      // change if your path/file differs
+  const img = new Image();
+  img.onload = () => console.log('[bg] Loaded OK:', testSrc, img.width + 'x' + img.height);
+  img.onerror = () => {
+    console.warn('[bg] FAILED to load:', testSrc);
+    const warn = document.createElement('div');
+    warn.textContent = 'Background image failed to load: ' + testSrc;
+    warn.style.cssText = 'position:fixed;left:10px;bottom:10px;padding:8px 10px;border-radius:8px;background:#b13a3a;color:#fff;font:12px/1.2 ui-sans-serif;z-index:10001';
+    document.body.appendChild(warn);
+  };
+  img.src = testSrc;
+})();
+
 
     const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
