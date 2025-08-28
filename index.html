@@ -350,7 +350,7 @@ body.is-host #playerUI{display:none;}
     
     // --- BG image probe (helps debug path issues) ---
 (function(){
-  const testSrc = './assets/background.jpg';      // change if your path/file differs
+  const testSrc = './assets/background.pgn';      // change if your path/file differs
   const img = new Image();
   img.onload = () => console.log('[bg] Loaded OK:', testSrc, img.width + 'x' + img.height);
   img.onerror = () => {
