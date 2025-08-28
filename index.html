@@ -463,10 +463,9 @@ body.is-host #playerUI{display:none;}
     const qArea = els('#qArea');
     const msg = els('#msg');
     const eliminated = els('#eliminated');
+    
     // Splash + landing panel refs
 const frontDoor = els('#frontDoor');
-const playBtn = els('#playBtn');
-const hostBtn = els('#hostBtn');
 const hostCreateCard = els('#hostCreateCard');
 const playerJoinCard = els('#playerJoinCard');
     
@@ -491,28 +490,6 @@ const finalRightHdr = document.getElementById('finalRightHdr');
 const finalLeftList = document.getElementById('finalLeftList');
 const finalRightList = document.getElementById('finalRightList');
 const finalSub = document.getElementById('finalSub');
-
-    if (playBtn) {
-  playBtn.addEventListener('click', () => {
-    homeSplash?.classList.add('hide');       // hide splash
-    landing?.classList.remove('hide');       // show landing
-    // show only the player join card
-    hostCreateCard?.classList.add('hide');
-    playerJoinCard?.classList.remove('hide');
-    // focus the join code for convenience
-    joinCode?.focus();
-  });
-}
-
-if (hostBtn) {
-  hostBtn.addEventListener('click', () => {
-    homeSplash?.classList.add('hide');       // hide splash
-    landing?.classList.remove('hide');       // show landing
-    // show only the host create card
-    hostCreateCard?.classList.remove('hide');
-    playerJoinCard?.classList.add('hide');
-    hostRoomCode?.focus();
-  });
   
 }
   function showLandingForPlayer() {
