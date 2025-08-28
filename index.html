@@ -170,7 +170,7 @@ body.is-host #playerUI{display:none;}
           </div>
         </div>
         <div class="card">
-        <div id="playerCard" class="card">
+        <div id="playerJoinCard" class="card">
           <h2>Players: join a room</h2>
           <div class="grid g2">
             <div>
@@ -472,8 +472,8 @@ const playerJoinCard = els('#playerJoinCard');
 const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
 // Landing sections
-const hostCard = document.getElementById('hostCard');
-const playerCard = document.getElementById('playerCard');
+const hostCreateCard = document.getElementById('hostCreateCard');
+const playerJoinCard = document.getElementById('playerJoinCard');
 
 // Modal elements (checkpoint)
 const checkpointModal = document.getElementById('checkpointModal');
@@ -522,8 +522,8 @@ function showPlayerJoin(){
   // Show landing with only player card visible
   frontDoor?.classList.add('hide');
   landing?.classList.remove('hide');
-  hostCard?.classList.add('hide');
-  playerCard?.classList.remove('hide');
+  hostCreateCard?.classList.add('hide');
+  playerJoinCard?.classList.remove('hide');
   // scroll into view nicety
   landing?.scrollIntoView({behavior:'smooth', block:'start'});
 }
@@ -532,8 +532,8 @@ function showHostCreate(){
   // Show landing with only host card visible
   frontDoor?.classList.add('hide');
   landing?.classList.remove('hide');
-  playerCard?.classList.add('hide');
-  hostCard?.classList.remove('hide');
+  playerJoinCard?.classList.add('hide');
+  hostCreateCard?.classList.remove('hide');
   landing?.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
@@ -730,24 +730,30 @@ if (hostShortcut) hostShortcut.addEventListener('click', showHostCreate);
       enterPlayer();
     });
 
-    function enterHost(){
-      document.body.classList.add('is-host');
-      landing.classList.add('hide');
-      hostUI.classList.remove('hide');
-      roomCodeHost.textContent = state.room;
-      wireRoomListeners();
-      listenForAutoScore();        // auto-score watcher
-      syncLadderToProgress(); // keep ladder in sync from the start
-    }
-    function enterPlayer(){
-      document.body.classList.remove('is-host');
-      landing.classList.add('hide');
-      hostUI.classList.remove('hide');
-      playerUI.classList.remove('hide');
-      roomCodePlayer.textContent = state.room;
-      meName.textContent = state.me?.name || '';
-      wireRoomListeners();
-    }
+   function enterHost(){
+  document.body.classList.add('is-host');
+  landing.classList.add('hide');
+  hostUI.classList.remove('hide');
+  // playerUI is auto-hidden by CSS when body.has .is-host
+  roomCodeHost.textContent = state.room;
+  wireRoomListeners();
+  listenForAutoScore();
+  syncLadderToProgress();
+}
+
+   function enterPlayer(){
+  document.body.classList.remove('is-host');
+  landing.classList.add('hide');
+
+  // IMPORTANT: keep host hidden for players
+  hostUI.classList.add('hide');
+  playerUI.classList.remove('hide');
+
+  roomCodePlayer.textContent = state.room;
+  meName.textContent = state.me?.name || '';
+  wireRoomListeners();
+}
+
 
     async function ensureArmedQuestion(db, roomCode){
       const metaRef = ref(db, `rooms/${roomCode}/meta`);
