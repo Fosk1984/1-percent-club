@@ -478,7 +478,26 @@ if (hostBtn) {
     playerJoinCard?.classList.add('hide');
     hostRoomCode?.focus();
   });
+  
 }
+ function showLandingForPlayer() {
+  // Hide splash, show landing with ONLY the player join card
+  frontDoor?.classList.add('hide');
+  landing?.classList.remove('hide');
+  hostCreateCard?.classList.add('hide');
+  playerJoinCard?.classList.remove('hide');
+}
+function showLandingForHost() {
+  // Hide splash, show landing with ONLY the host create card
+  frontDoor?.classList.add('hide');
+  landing?.classList.remove('hide');
+  hostCreateCard?.classList.remove('hide');
+  playerJoinCard?.classList.add('hide');
+}
+
+// Wire buttons
+playBtn?.addEventListener('click', showLandingForPlayer);
+hostBtn?.addEventListener('click', showLandingForHost);
 
 
 function showPlayerJoin(){
