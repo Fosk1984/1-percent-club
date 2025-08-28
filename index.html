@@ -110,13 +110,49 @@ body.is-host #playerUI{display:none;}
   <button id="hostShortcut">Host</button>
 </div>
     <div id="landing" class="card hide">
-      <div id="hostLanding" class="grid g2" style="margin-top:8px;">
-         <div class="card" id="hostCreateCard">
-         </div>
-       <div class="card" id="playerJoinCard"> 
-     </div>
+  <div id="hostLanding" class="grid g2" style="margin-top:8px;">
+
+    <!-- Host create card -->
+    <div class="card" id="hostCreateCard">
+      <h2>Host: create a room</h2>
+      <div class="grid g2">
+        <div>
+          <label>Room code (optional)</label>
+          <input id="hostRoomCode" maxlength="6" placeholder="e.g. 7H2K9Q" />
+        </div>
+        <div>
+          <label>Player limit</label>
+          <input id="playerLimit" type="number" min="2" max="80" value="80" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="createRoomBtn" class="btn-acc">Create room</button>
+        <span class="hint">You’ll join as host (not a contestant).</span>
+      </div>
+    </div>
+
+    <!-- Player join card -->
+    <div class="card" id="playerJoinCard">
+      <h2>Players: join a room</h2>
+      <div class="grid g2">
+        <div>
+          <label>Room code</label>
+          <input id="joinCode" maxlength="6" placeholder="Enter code" />
+        </div>
+        <div>
+          <label>Your display name</label>
+          <input id="displayName" maxlength="24" placeholder="e.g. Alex" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="joinBtn" class="btn-ok">Join game</button>
+        <span class="hint">Up to 80 players. Eliminated on wrong answer.</span>
+      </div>
+    </div>
+
   </div>
 </div>
+
           <h2>Host: create a room</h2>
           <div class="grid g2">
             <div>
@@ -479,24 +515,30 @@ if (hostBtn) {
   });
   
 }
- function showLandingForPlayer() {
-  // Hide splash, show landing with ONLY the player join card
+  function showLandingForPlayer() {
   frontDoor?.classList.add('hide');
   landing?.classList.remove('hide');
   hostCreateCard?.classList.add('hide');
   playerJoinCard?.classList.remove('hide');
+  document.body.classList.remove('is-host');
 }
+
 function showLandingForHost() {
-  // Hide splash, show landing with ONLY the host create card
   frontDoor?.classList.add('hide');
   landing?.classList.remove('hide');
   hostCreateCard?.classList.remove('hide');
   playerJoinCard?.classList.add('hide');
+  document.body.classList.add('is-host');
 }
 
-// Wire buttons
-playBtn?.addEventListener('click', showLandingForPlayer);
-hostBtn?.addEventListener('click', showLandingForHost);
+bigPlay?.addEventListener('click', showLandingForPlayer);
+hostShortcut?.addEventListener('click', showLandingForHost);
+
+// Optional URL shortcuts
+const params = new URLSearchParams(location.search);
+const mode = params.get('mode');
+if (mode === 'host') showLandingForHost();
+else if (mode === 'play') showLandingForPlayer();
 
 
 function showPlayerJoin(){
