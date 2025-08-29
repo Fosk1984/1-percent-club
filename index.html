@@ -399,6 +399,10 @@ body.is-host #playerUI{display:none;}
     const qArea = els('#qArea');
     const msg = els('#msg');
     const eliminated = els('#eliminated');
+
+document.body.classList.add('landing-bg');
+
+    
     const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
 // Modal elements (checkpoint)
@@ -601,7 +605,8 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
     });
 
     function enterHost(){
-      document.body.classList.add('is-host');
+      document.body.classList.remove('landing-bg');
+      document.body.classList.remove('is-host');
       landing.classList.add('hide');
       hostUI.classList.remove('hide');
       roomCodeHost.textContent = state.room;
@@ -610,6 +615,7 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
       syncLadderToProgress(); // keep ladder in sync from the start
     }
     function enterPlayer(){
+      document.body.classList.remove('landing-bg');
       document.body.classList.remove('is-host');
       landing.classList.add('hide');
       hostUI.classList.remove('hide');
