@@ -589,12 +589,6 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
 if (bigPlay) bigPlay.addEventListener('click', showPlayerJoin);
 if (hostShortcut) hostShortcut.addEventListener('click', showHostCreate);
 
-
-    
-    // Question bank elements
-    const percentTxt = els('#percentTxt');
-    const answeredCountEl = els('#answeredCount');
-    const lockedCountEl   = els('#lockedCount');
     // --- Live caches for answer/lock counters (not in `state`)
     let latestPlayers = {};          // updated by the /players listener
     let answersUnsubForQ = null;     // unsubscribe fns for the active qid
