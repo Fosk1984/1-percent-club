@@ -3,1293 +3,159 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>1% Club — Multiplayer (Firebase)</title>
-  <meta name="description" content="Host-controlled 1% Club style quiz with up to 80 players. Built for GitHub Pages + Firebase Realtime Database.">
-  <link rel="icon" href="data:,"><!-- silence favicon 404 on GitHub Pages -->
+  <title>Launch</title>
+  <meta name="description" content="Minimal landing page with a fullscreen background and a centered Play button." />
+  <link rel="icon" href="data:,"><!-- avoid 404 on GitHub Pages -->
   <style>
     :root{
-      --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf; --edge:#22315c;
-      --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b;
+      /* Change this to your image path or pass ?bg=/path/to.jpg in the URL */
+      --bg-url: url('./assets/background.png');
+      --ink: #ffffff;
+      --ink-dim: rgba(255,255,255,.8);
+      --shadow: rgba(0,0,0,.5);
+      --shadow-strong: rgba(0,0,0,.65);
+      --accent: #6ac2ff;
     }
     *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      color:var(--ink); background:radial-gradient(1200px 800px at 15% -10%, #182449 0%, #0f1730 40%, var(--bg) 100%);
+    html,body{height:100%;}
+    body{
+      margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      color:var(--ink);
+      background:#000;
     }
-    .shell{max-width:1100px; margin:0 auto; padding:24px}
-    h1{margin:0 0 12px; font-size:clamp(22px,3.2vw,36px)}
-    h2{margin:18px 0 8px; font-size:clamp(18px,2.2vw,24px)}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.08)); border:1px solid var(--edge);
-      box-shadow:0 10px 30px rgba(0,0,0,.35); border-radius:16px; padding:16px; margin:12px 0}
-    .grid{display:grid; gap:12px}
-    .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
-    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    label{font-size:14px; color:var(--muted)}
-    input, textarea, select{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--edge);
-      background:#0f1530; color:var(--ink)}
-    textarea{min-height:100px; resize:vertical}
-    button{cursor:pointer; border:1px solid var(--edge); background:linear-gradient(180deg,#1a254d,#121a38);
-      color:var(--ink); padding:10px 14px; border-radius:12px; font-weight:600; box-shadow:0 6px 16px rgba(0,0,0,.35)}
-    button[disabled]{opacity:.5; cursor:not-allowed}
-    .btn-acc{background:linear-gradient(180deg,#3aa7ff,#2263a2)}
-    .btn-acc2{background:linear-gradient(180deg,#ffd36a,#c49e2e); color:#1a1400}
-    .btn-ok{background:linear-gradient(180deg,#33d17a,#1a7a49)}
-    .btn-bad{background:linear-gradient(180deg,#ff6b6b,#b13a3a)}
-    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
-    .hint{color:var(--muted); font-size:13px}
-    .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
-      background:#0d1430; border:1px solid var(--edge); font-size:13px}
-    .timer{font-variant-numeric:tabular-nums; font-size:22px}
-    .answers{display:grid; gap:10px; grid-template-columns:1fr}
-    .answerBtn{padding:16px; text-align:left; border-radius:14px; border:1px solid var(--edge); background:#101a3a;
-      font-size:16px}
-    .answerBtn.selected{outline:2px solid var(--acc)}
-    .answerBtn.correct{outline:2px solid var(--ok)}
-    .answerBtn.wrong{outline:2px solid var(--bad)}
-    .muted{color:var(--muted)}
-    .small{font-size:12px}
-    .list{max-height:260px; overflow:auto; padding-right:6px}
-    .tag{padding:.2rem .45rem; border-radius:8px; border:1px solid var(--edge); background:#0c1230; font-size:12px}
-    .center{display:flex; align-items:center; justify-content:center}
-    .big{font-size:clamp(28px,4vw,44px); font-weight:700}
-    .hide{display:none !important}
 
-    /* ===== Percent Ladder (scoped) ===== */
-    .percent-ladder{--card:#12172a;--ink:#eaf0ff;--muted:#9aa4bf;--acc:#6ac2ff;--ok:#33d17a;--chk:#ffd36a;
-      display:flex;flex-direction:column;gap:.35rem;background:var(--card);padding:.75rem;border-radius:.75rem;border:1px solid #22305f;}
-    .percent-ladder .hdr{color:var(--muted);font:600 12px/1.2 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;letter-spacing:.04em;text-transform:uppercase;margin-bottom:.25rem}
-    .pl-steps{display:flex;flex-direction:column-reverse;gap:.25rem}
-    .pl-step{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:.5rem;border:1px solid #24336a;
-      color:var(--ink);background:linear-gradient(180deg,#151c36,#12172a);cursor:pointer;position:relative;user-select:none;outline:none}
-    .pl-step[data-cleared="true"]{background:linear-gradient(180deg,#122a1c,#0f1f18);border-color:#1f5137}
-    .pl-step[data-cleared="true"] .tag{color:var(--ok)}
-    .pl-step[data-current="true"]{box-shadow:0 0 0 2px var(--acc) inset, 0 8px 30px rgba(106,194,255,.25)}
-    .pl-step[data-checkpoint="true"]::after{content:"";position:absolute;right:10px;top:50%;transform:translateY(-50%);width:.55rem;height:.55rem;border-radius:50%;background:var(--acc2);box-shadow:0 0 8px rgba(255,211,106,.8)}
-    .pct{font:600 14px/1 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
-    .tag{margin-left:auto;font:500 11px/1 ui-sans-serif,system-ui;letter-spacing:.03em;color:var(--muted)}
+    /* Fullscreen background */
+    .stage{
+      position:relative;
+      min-height:100dvh; /* accounts for mobile UI */
+      display:grid;
+      place-items:center;
+      overflow:hidden;
+      isolation:isolate; /* keep overlay under content */
+    }
+    .stage::before{
+      content:"";
+      position:absolute; inset:0;
+      background-image: var(--bg-url);
+      background-size: cover; background-position: center; background-repeat: no-repeat;
+      transform: scale(1.02); /* subtle overscan to avoid edges */
+      z-index:-2;
+      will-change: transform;
+    }
+    /* Subtle dark overlay for legibility */
+    .stage::after{
+      content:"";
+      position:absolute; inset:0;
+      background: radial-gradient(120% 120% at 50% 50%, rgba(0,0,0,.15), rgba(0,0,0,.55) 60%, rgba(0,0,0,.75));
+      z-index:-1;
+    }
 
-    /* Role guard: only show hostUI when body.has .is-host; only show playerUI otherwise */
-#hostUI{display:none;}
-#playerUI{display:block;}
-body.is-host #hostUI{display:block;}
-body.is-host #playerUI{display:none;}
+    /* Center content wrapper */
+    .center{
+      display:grid; gap:1rem; place-items:center; text-align:center;
+      padding: 2rem;
+      filter: drop-shadow(0 10px 30px var(--shadow));
+    }
 
+    /* Play button */
+    .play-btn{
+      -webkit-tap-highlight-color: transparent;
+      appearance:none; text-decoration:none; border:0; cursor:pointer;
+      width: 140px; height: 140px; border-radius: 999px;
+      display:grid; place-items:center;
+      background: linear-gradient(180deg, var(--shadow-strong), rgba(0,0,0,.2));
+      backdrop-filter: blur(6px) saturate(140%);
+      box-shadow:
+        0 10px 25px rgba(0,0,0,.45),
+        inset 0 0 0 2px rgba(255,255,255,.08),
+        inset 0 0 30px rgba(255,255,255,.08);
+      transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+    }
+    .play-btn:hover{ transform: translateY(-2px) scale(1.02); }
+    .play-btn:active{ transform: translateY(0) scale(.98); }
+    .play-btn:focus-visible{ outline: 3px solid var(--accent); outline-offset: 4px; }
 
-    
+    /* Triangle icon */
+    .play-btn svg{ width: 46%; height: 46%; display:block; }
+
+    /* Optional label under the button */
+    .label{
+      font-size: clamp(1.05rem, 1.5vw + .5rem, 1.5rem);
+      color: var(--ink-dim);
+      letter-spacing: .02em;
+      text-shadow: 0 2px 10px rgba(0,0,0,.6);
+      user-select: none;
+    }
+
+    /* Footer hint */
+    .hint{
+      position: absolute; inset:auto 0 1rem; text-align:center; font-size:.85rem; color:rgba(255,255,255,.7);
+      text-shadow: 0 1px 2px rgba(0,0,0,.5);
+    }
+
+    @media (max-width: 480px){
+      .play-btn{ width: 110px; height: 110px; }
+    }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <h1>🧠 The 1% Club — Multiplayer</h1>
-    <div id="landing" class="card">
-      <div id="hostLanding" class="grid g2" style="margin-top:8px;">
-        <div class="card">
-          <h2>Host: create a room</h2>
-          <div class="grid g2">
-            <div>
-              <label>Room code (optional)</label>
-              <input id="hostRoomCode" maxlength="6" placeholder="e.g. 7H2K9Q" />
-            </div>
-            <div>
-              <label>Player limit</label>
-              <input id="playerLimit" type="number" min="2" max="80" value="80" />
-            </div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button id="createRoomBtn" class="btn-acc">Create room</button>
-            <span class="hint">You’ll join as host (not a contestant).</span>
-          </div>
-        </div>
-        <div class="card">
-          <h2>Players: join a room</h2>
-          <div class="grid g2">
-            <div>
-              <label>Room code</label>
-              <input id="joinCode" maxlength="6" placeholder="Enter code" />
-            </div>
-            <div>
-              <label>Your display name</label>
-              <input id="displayName" maxlength="24" placeholder="e.g. Alex" />
-            </div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button id="joinBtn" class="btn-ok">Join game</button>
-            <span class="hint">Up to 80 players. Eliminated on wrong answer.</span>
-          </div>
-        </div>
-      </div>
+  <main class="stage" id="stage">
+    <div class="center">
+      <!-- Set this href to where your app/game lives (e.g., index.html or game.html) -->
+      <a class="play-btn" id="play" href="index.html" aria-label="Play">
+        <!-- Play icon (triangle) -->
+        <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+          <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <circle cx="50" cy="50" r="46" fill="rgba(255,255,255,.08)" stroke="rgba(255,255,255,.12)" stroke-width="2" />
+          <polygon points="40,32 72,50 40,68" fill="white" filter="url(#glow)"/>
+        </svg>
+        <span class="sr-only">Play</span>
+      </a>
+      <div class="label">Play</div>
     </div>
 
-    <div id="hostUI" class="card hide">
-      <div class="row">
-        <div class="pill">Room: <span id="roomCodeHost" class="mono"></span></div>
-        <div class="pill">Players alive: <span id="aliveCount">0</span></div>
-        <div class="pill">Question #<span id="qNumber">0</span></div>
-        <button id="copyInvite" class="">Copy invite</button>
-      </div>
+    <div class="hint">Tip: you can set a custom image with <code>?bg=/path/to/your.jpg</code> and destination with <code>?to=game.html</code>.</div>
+  </main>
 
-      <div class="grid g2" style="margin-top:10px">
-        <div class="card">
-          <h2>Question builder</h2>
-          <label>Question prompt</label>
-          <textarea id="qPrompt" placeholder="e.g. What is 15% of 220?"></textarea>
-          <div class="grid g2">
-            <div><label>A</label><input id="opt0" placeholder="e.g. 33"/></div>
-            <div><label>B</label><input id="opt1" placeholder="e.g. 30"/></div>
-            <div><label>C</label><input id="opt2" placeholder="e.g. 22"/></div>
-            <div><label>D</label><input id="opt3" placeholder="e.g. 28"/></div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <label>Correct answer</label>
-            <select id="correctIndex">
-              <option value="0">A</option>
-              <option value="1">B</option>
-              <option value="2">C</option>
-              <option value="3">D</option>
-            </select>
-            <label>Answer window</label>
-            <select id="answerWindow">
-              <option value="30">30 seconds</option>
-              <option value="20">20 seconds</option>
-              <option value="15">15 seconds</option>
-              <option value="10">10 seconds</option>
-            </select>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button id="revealBtn" class="btn-acc">2) Reveal to players & start timer</button>
-            <button id="lockBtn" class="btn-bad">3) Lock answers now</button>
-            <button id="scoreBtn" class="btn-ok">4) Reveal correct & eliminate</button>
-            <button id="nextBtn" class="btn-acc2">Next question</button>
-          </div>
-          <div class="hint">Flow: Reveal (timer starts) → Lock (optional) → Reveal correct & eliminate → Next.</div>
-        </div>
-          <div class="card">
-          <h2>Players</h2>
-          <div id="playersList" class="list"></div>
-        </div>
-      </div>
+  <noscript>
+    <div style="position:fixed;inset:auto 0 0 0;padding:1rem;text-align:center;background:rgba(0,0,0,.6);color:white">JavaScript is off. <a href="index.html" style="color:#fff;text-decoration:underline">Continue</a>.</div>
+  </noscript>
 
-     <div class="grid g2">
-  <!-- Live question (fixed nesting) -->
-  <div class="card">
-    <h2>Live question</h2>
-    <div class="row">
-      <div class="pill">Phase: <span id="phaseTxt">—</span></div>
-      <div class="pill">Deadline: <span id="deadlineTxt" class="timer">—</span></div>
-      <div class="pill">Percent: <span id="percentTxt">—</span></div>
-      <div class="pill">Answered: <span id="answeredCount">0/0</span></div>
-      <div class="pill">Locked: <span id="lockedCount">0/0</span></div>
-    </div>
-
-    <!-- These three MUST be inside the same .card -->
-    <div id="livePrompt" class="big" style="margin-top:8px">—</div>
-    <div id="liveChoices" class="grid g2" style="margin-top:8px"></div>
-    <div id="hostResults" style="margin-top:10px"></div>
-  </div>
-
-  <!-- Percent Ladder panel -->
-  <div class="card">
-    <h2>Percent Ladder</h2>
-    <div id="ladder" class="percent-ladder" role="group" aria-label="Percent ladder">
-      <div class="hdr">This 10-Q chunk</div>
-      <div class="pl-steps" aria-live="polite"></div>
-    </div>
-    <div class="hint small" style="margin-top:8px">
-      Uses <code>percent</code> from your bank (if present). Otherwise maps chunk index to [90,80,…,1].
-    </div>
-  </div>
-</div>
-
-
-      <div class="card">
-        <h2>Question bank</h2>
-        <div class="row" style="margin-bottom:8px">
-          <span class="pill">Loaded: <span id="bankCount">0</span></span>
-          <span class="pill">Next: <span id="bankNext">1</span></span>
-        </div>
-        <textarea id="bankText" placeholder='Paste JSON or CSV with columns: prompt,A,B,C,D,correct,seconds,percent'></textarea>
-        <div class="row" style="margin-top:10px">
-          <button id="importBankBtn">Import JSON/CSV</button>
-          <button id="stageNextBtn" class="btn-acc2">Stage next from bank</button>
-        </div>
-        <div class="hint small">JSON examples: [{"prompt":"…","A":"…","B":"…","C":"…","D":"…","correct":"B","seconds":30,"percent":90}] or {"prompt":"…","options":["A","B","C","D"],"correctIndex":1,"percent":90}</div>
-      </div>
-    </div>
-
-    <div id="playerUI" class="card hide">
-      <div class="row">
-        <div class="pill">Room: <span id="roomCodePlayer" class="mono"></span></div>
-        <div class="pill">Name: <span id="meName" class="mono"></span></div>
-        <div class="pill">Status: <span id="statusTxt">Waiting…</span></div>
-        <div class="pill">Time left: <span id="timeLeft" class="timer">—</span></div>
-      </div>
-      <div id="msg" class="muted" style="margin-top:6px">Waiting for host…</div>
-      <div id="qArea" class="hide">
-        <div id="pPrompt" class="big" style="margin:10px 0">—</div>
-        <div class="muted" id="pPercent" style="margin:-6px 0 8px"> </div>
-        <div class="answers" id="answerBtns"></div>
-        <div class="row" style="margin-top:8px">
-          <button id="lockAnswerBtn" class="btn-acc" disabled>Lock answer</button>
-        </div>
-        <div id="resultsPlayer" style="margin-top:10px"></div>
-      </div>
-      <div id="eliminated" class="hide center" style="height:160px"><div class="big">❌ You’ve been eliminated</div></div>
-
-      <!-- Player roster -->
-      <div class="card" style="margin-top:10px">
-        <h2>Players</h2>
-        <div id="playersListPlayer" class="list"></div>
-      </div>
-    </div>
-
-  <!-- Checkpoint Recap Modal -->
-<div id="checkpointModal" class="hide"
-     style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
-  <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
-             background:linear-gradient(180deg,#141a33,#0f1530);
-              border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
-    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
-      <h2 style="margin:0">Checkpoint recap</h2>
-      <button id="closeCheckpointBtn">Close</button>
-    </div>
-    <div class="grid g2">
-      <div class="card" style="margin:0">
-        <h2 style="margin-top:0">Still in</h2>
-        <div id="cpAliveList" class="list"></div>
-      </div>
-      <div class="card" style="margin:0">
-        <h2 style="margin-top:0">Out</h2>
-        <div id="cpOutList" class="list"></div>
-      </div>
-    </div>
-    <div class="hint small" style="margin-top:8px">This shows players who were present at the time of the checkpoint.</div>
-  </div>
-</div>
-
-<!-- Final Recap Modal -->
-<div id="finalModal" class="hide"
-     style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
-  <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
-              background:linear-gradient(180deg,#141a33,#0f1530);
-              border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
-    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
-      <h2 id="finalTitle" style="margin:0">Game results</h2>
-      <button id="closeFinalBtn">Close</button>
-    </div>
-    <div class="grid g2">
-      <div class="card" style="margin:0">
-        <h2 style="margin-top:0" id="finalLeftHdr">Winner(s)</h2>
-        <div id="finalLeftList" class="list"></div>
-      </div>
-      <div class="card" style="margin:0">
-        <h2 style="margin-top:0" id="finalRightHdr">Others</h2>
-        <div id="finalRightList" class="list"></div>
-      </div>
-    </div>
-    <div id="finalSub" class="hint small" style="margin-top:8px"></div>
-  </div>
-</div>
-
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js';
-    import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js';
-    import { getDatabase, ref, child, get, set, update, onValue, onDisconnect } from 'https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js';
-
-    const FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAAlHBdemzktDB25HozuliuL6BWcYZ7hUg",
-      authDomain: "percent-club-76c05.firebaseapp.com",
-      databaseURL: "https://percent-club-76c05-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "percent-club-76c05",
-      storageBucket: "percent-club-76c05.appspot.com",
-      messagingSenderId: "87140817040",
-      appId: "1:87140817040:web:aee1db0e278e641f97a015",
-      measurementId: "G-8V0MWEYWLZ"
-    };
-
-    // --- App state ---
-    const app = initializeApp(FIREBASE_CONFIG);
-    const auth = getAuth(app);
-    const db = getDatabase(app);
-
-    // Keep client aligned to server time for deadlines
-    let serverOffset = 0;
-    onValue(ref(db, '.info/serverTimeOffset'), (snap)=> { serverOffset = snap.val() || 0; });
-
-    const els = (q)=>document.querySelector(q);
-    const $$ = (q)=>Array.from(document.querySelectorAll(q));
-
-    const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
-
-    // progressAbs drives the ladder; bankIndex is just the staging cursor
-    const state = {
-      uid:null, room:null, host:false, me:null,
-      current:null, timerInt:null,
-      bank:[], bankIndex:0,
-      meEliminated:false,
-      progressAbs:0,
-      stagedPercent: undefined,
-      stagedIndex: undefined
-    };
-
-    // UI elements
-    const landing = els('#landing');
-    const hostRoomCode = els('#hostRoomCode');
-    const playerLimitEl = els('#playerLimit');
-    const createRoomBtn = els('#createRoomBtn');
-    const joinCode = els('#joinCode');
-    const displayName = els('#displayName');
-    const joinBtn = els('#joinBtn');
-
-    const hostUI = els('#hostUI');
-    const roomCodeHost = els('#roomCodeHost');
-    const aliveCount = els('#aliveCount');
-    const qNumber = els('#qNumber');
-    const copyInvite = els('#copyInvite');
-    const playersList = els('#playersList');
-    const phaseTxt = els('#phaseTxt');
-    const deadlineTxt = els('#deadlineTxt');
-    const livePrompt = els('#livePrompt');
-    const liveChoices = els('#liveChoices');
-    const hostResults = els('#hostResults');
-
-    const qPrompt = els('#qPrompt');
-    const opt0 = els('#opt0');
-    const opt1 = els('#opt1');
-    const opt2 = els('#opt2');
-    const opt3 = els('#opt3');
-    const correctIndex = els('#correctIndex');
-    const answerWindow = els('#answerWindow');
-    const stageHiddenBtn = els('#stageHiddenBtn');
-    const revealBtn = els('#revealBtn');
-    const lockBtn = els('#lockBtn');
-    const scoreBtn = els('#scoreBtn');
-    const nextBtn = els('#nextBtn');
-
-    const playerUI = els('#playerUI');
-    const roomCodePlayer = els('#roomCodePlayer');
-    const meName = els('#meName');
-    const statusTxt = els('#statusTxt');
-    const timeLeft = els('#timeLeft');
-    const pPrompt = els('#pPrompt');
-    const answerBtns = els('#answerBtns');
-    const resultsPlayer = els('#resultsPlayer');
-    const qArea = els('#qArea');
-    const msg = els('#msg');
-    const eliminated = els('#eliminated');
-    const lockAnswerBtn = document.getElementById('lockAnswerBtn');
-
-// Modal elements (checkpoint)
-const checkpointModal = document.getElementById('checkpointModal');
-const cpAliveList = document.getElementById('cpAliveList');
-const cpOutList = document.getElementById('cpOutList');
-const closeCheckpointBtn = document.getElementById('closeCheckpointBtn');
-
-// Final modal elements
-const finalModal = document.getElementById('finalModal');
-const closeFinalBtn = document.getElementById('closeFinalBtn');
-const finalTitle = document.getElementById('finalTitle');
-const finalLeftHdr = document.getElementById('finalLeftHdr');
-const finalRightHdr = document.getElementById('finalRightHdr');
-const finalLeftList = document.getElementById('finalLeftList');
-const finalRightList = document.getElementById('finalRightList');
-const finalSub = document.getElementById('finalSub');
-
-// Guards
-let shownCheckpointForQid = null;
-
-if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
-if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
-
-    
-    // Question bank elements
-    const bankText = els('#bankText');
-    const importBankBtn = els('#importBankBtn');
-    const stageNextBtn = els('#stageNextBtn');
-    const bankCount = els('#bankCount');
-    const bankNext = els('#bankNext');
-    const percentTxt = els('#percentTxt');
-    const answeredCountEl = els('#answeredCount');
-    const lockedCountEl   = els('#lockedCount');
-    // --- Live caches for answer/lock counters (not in `state`)
-    let latestPlayers = {};          // updated by the /players listener
-    let answersUnsubForQ = null;     // unsubscribe fns for the active qid
-    let locksUnsubForQ   = null;
-
-    
-
-    // ===== Percent Ladder component =====
-    class PercentLadder {
-      constructor(selectorOrEl, {steps=[], currentIndex=0, cleared=[], checkpoints=[]}={}){
-        this.el = typeof selectorOrEl==='string' ? document.querySelector(selectorOrEl) : selectorOrEl;
-        this.steps = steps.slice();
-        this.currentIndex = currentIndex|0;
-        this.cleared = new Set(cleared||[]);
-        this.checkpoints = new Set(checkpoints||[]);
-        this._stepsRoot = this.el.querySelector('.pl-steps');
-        this.render();
-        this._attach();
-      }
-      _attach(){
-        this._stepsRoot.addEventListener('click', (e)=>{
-          const item = e.target.closest('.pl-step');
-          if(!item) return;
-          const idx = +item.dataset.index;
-          this.setCurrent(idx);
-          this.el.dispatchEvent(new CustomEvent('ladder-select',{detail:{index:idx, percent:this.steps[idx]}}));
-        });
-      }
-      render(){
-        const frag = document.createDocumentFragment();
-        this._stepsRoot.innerHTML='';
-        this.steps.forEach((pct, idx)=>{
-          const step = document.createElement('button');
-          step.type='button';
-          step.className='pl-step';
-          step.dataset.index=idx;
-          step.dataset.current = (idx===this.currentIndex);
-          step.dataset.cleared = this.cleared.has(idx);
-          step.dataset.checkpoint = this.checkpoints.has(idx);
-          step.setAttribute('aria-pressed', idx===this.currentIndex ? 'true':'false');
-          step.setAttribute('aria-label', `${pct}% step`);
-          step.innerHTML = `
-            <span class="pct">${pct}%</span>
-            <span class="tag">${idx===this.currentIndex?'Current':(this.cleared.has(idx)?'Cleared':'')}</span>
-          `;
-          frag.appendChild(step);
-        });
-        this._stepsRoot.appendChild(frag);
-      }
-      setSteps(steps){ this.steps = steps.slice(); this.currentIndex = Math.min(this.currentIndex, this.steps.length-1); this.render(); }
-      setCurrent(i){
-        this.currentIndex = i;
-        [...this._stepsRoot.children].forEach(btn=>{
-          const isCur = +btn.dataset.index===i;
-          btn.dataset.current = isCur;
-          btn.setAttribute('aria-pressed', isCur ? 'true':'false');
-          btn.querySelector('.tag').textContent = isCur ? 'Current' : (btn.dataset.cleared==='true' ? 'Cleared' : '');
-        });
-      }
-      setCleared(indices){
-        this.cleared = new Set(indices||[]);
-        [...this._stepsRoot.children].forEach(btn=>{
-          const isCleared = this.cleared.has(+btn.dataset.index);
-          btn.dataset.cleared = isCleared;
-          if(!isCleared && btn.dataset.current!=='true') btn.querySelector('.tag').textContent='';
-          if(isCleared && btn.dataset.current!=='true') btn.querySelector('.tag').textContent='Cleared';
-        });
-      }
-      setCheckpoints(indices){
-        this.checkpoints = new Set(indices||[]);
-        [...this._stepsRoot.children].forEach(btn=>{
-          btn.dataset.checkpoint = this.checkpoints.has(+btn.dataset.index);
-        });
-      }
-    }
-
-    const ladder = new PercentLadder('#ladder', {
-      steps: [90,80,70,60,50,40,30,20,10,1],
-      currentIndex: 0,
-      cleared: [],
-      checkpoints: [4,7] // 50% & 20% examples
-    });
-
-    // ===== Ladder helpers (progress-driven) =====
-    function percentForAbsoluteIndex(absIndex){
-      const def = [90,80,70,60,50,40,30,20,10,1];
-      const start = Math.floor(absIndex/10)*10;
-      const item = state.bank[absIndex];
-      if (item && Number.isFinite(item.percent)) return item.percent;
-      return def[absIndex - start] ?? 90;
-    }
-    function chunkStartByProgress(abs){ return Math.floor(abs/10)*10; }
-    function buildStepsForProgressChunk(start){
-      const def = [90,80,70,60,50,40,30,20,10,1];
-      const steps = def.slice();
-      for (let k=0;k<10;k++){
-        const item = state.bank[start+k];
-        if (item && Number.isFinite(item.percent)) steps[k] = item.percent;
-      }
-      return steps;
-    }
-    function syncLadderToProgress(){
-      const start = chunkStartByProgress(state.progressAbs);
-      const steps = buildStepsForProgressChunk(start);
-      const within = state.progressAbs % 10;
-      ladder.setSteps(steps);
-      ladder.setCleared(Array.from({length: within}, (_,i)=>i));
-      ladder.setCurrent(within);
-    }
-    document.getElementById('ladder').addEventListener('ladder-select', (e)=>{
-      const targetWithin = e.detail.index;  // 0..9
-      const start = chunkStartByProgress(state.progressAbs);
-      state.progressAbs = start + targetWithin;
-      syncLadderToProgress();
-    });
-
-    // ===== Auth flow =====
-    createRoomBtn.disabled = true; joinBtn.disabled = true;
-    onAuthStateChanged(auth, async (user)=>{
-      if(user){ state.uid = user.uid; createRoomBtn.disabled = false; joinBtn.disabled = false; return; }
-      await signInAnonymously(auth);
-    });
-
-
-    // Create room
-    createRoomBtn.addEventListener('click', async ()=>{
-      const code = (hostRoomCode.value || genCode()).toUpperCase();
-      const limit = Math.min(80, Math.max(2, parseInt(playerLimitEl.value||"80",10)));
-      const roomRef = ref(db, `rooms/${code}`);
-      await set(child(roomRef,'meta'), {
-        hostUid: state.uid,
-        allowJoin: true,
-        playerLimit: limit,
-        qIndex: 0,
-        createdAt: Date.now() + serverOffset
-      });
-      await set(child(roomRef,'current'), { phase:'hidden', qid:0 });
-      state.room = code; state.host = true;
-      enterHost();
-    });
-
-    // Join room
-    joinBtn.addEventListener('click', async ()=>{
-      const code = (joinCode.value||'').toUpperCase().trim();
-      const name = (displayName.value||'Player').trim();
-      if(!code) return alert('Enter room code');
-      const roomRef = ref(db, `rooms/${code}`);
-      const snap = await get(child(roomRef,'meta'));
-      if(!snap.exists()) return alert('Room not found');
-      const meta = snap.val();
-      if(!meta.allowJoin) return alert('Host has closed joining');
-
-      // capacity check
-      const playersSnap = await get(child(roomRef,'players'));
-      const count = playersSnap.exists()? Object.values(playersSnap.val()).filter(p=>p.present && !p.eliminated).length : 0;
-      if(count >= (meta.playerLimit||80)) return alert('Room is full');
-
-      await update(child(roomRef,`players/${state.uid}`), {
-        name, present:true, eliminated:false, joinedAt: Date.now() + serverOffset
-      });
-      const meRef = child(roomRef,`players/${state.uid}/present`);
-      onDisconnect(meRef).set(false);
-
-      state.room = code; state.host = false; state.me = {name};
-      enterPlayer();
-    });
-
-    function enterHost(){
-      document.body.classList.add('is-host');
-      landing.classList.add('hide');
-      hostUI.classList.remove('hide');
-      roomCodeHost.textContent = state.room;
-      wireRoomListeners();
-      listenForAutoScore();        // auto-score watcher
-      syncLadderToProgress(); // keep ladder in sync from the start
-    }
-    function enterPlayer(){
-      document.body.classList.remove('is-host');
-      landing.classList.add('hide');
-      hostUI.classList.remove('hide');
-      playerUI.classList.remove('hide');
-      roomCodePlayer.textContent = state.room;
-      meName.textContent = state.me?.name || '';
-      wireRoomListeners();
-    }
-
-    async function ensureArmedQuestion(db, roomCode){
-      const metaRef = ref(db, `rooms/${roomCode}/meta`);
-      const curRef  = ref(db, `rooms/${roomCode}/current`);
-      const [metaSnap, curSnap] = await Promise.all([get(metaRef), get(curRef)]);
-      const meta = metaSnap.val() || {};
-      const cur  = curSnap.val() || {};
-      if (cur.qid && Number.isInteger(cur.qid) && cur.qid > 0) return cur.qid;
-      const qid = (meta.qIndex || 0) + 1;
-      await update(metaRef, { qIndex: qid });
-      await set(curRef, { phase:'hidden', qid, prompt:null, choices:null, stats:null });
-      return qid;
-    }
-
-    // Reveal — percent derived from absolute progress unless bank overrides; also advance ladder here
-    revealBtn.addEventListener('click', async ()=>{
+  <script>
+    // Allow setting background and target via query params: ?bg=...&to=...
+    (function(){
       try{
-        if(!qPrompt.value.trim()) return alert('Enter a question');
-        const choices = [opt0.value, opt1.value, opt2.value, opt3.value];
-        if(choices.some(c=>!c || !c.trim())) return alert('Enter all 4 choices');
-
-        const secs = parseInt(answerWindow.value,10);
-        const code = state.room;
-        const qid  = await ensureArmedQuestion(db, code);
-
-        const currentRef = ref(db,`rooms/${code}/current`);
-        const nowMs     = Date.now() + serverOffset;
-        const deadline  = nowMs + secs*1000;
-
-        let absIndexForThisReveal;
-        if (typeof state.stagedIndex === 'number') {
-          absIndexForThisReveal = state.stagedIndex;
-        } else {
-          absIndexForThisReveal = state.progressAbs;
+        const params = new URLSearchParams(location.search);
+        const bg = params.get('bg');
+        const to = params.get('to');
+        if(bg){
+          // decode in case the URL is percent-encoded
+          const url = decodeURIComponent(bg);
+          document.documentElement.style.setProperty('--bg-url', `url('${url}')`);
         }
-
-        const p = (typeof state.stagedPercent === 'number')
-          ? state.stagedPercent
-          : percentForAbsoluteIndex(absIndexForThisReveal);
-
-        const payload = {
-          phase: 'revealed',
-          qid,
-          prompt: qPrompt.value.trim(),
-          choices,
-          deadline,
-          percent: p
-        };
-
-        await set(currentRef, payload);
-
-        // Advance ladder progress on Reveal (the reliable moment a question goes live)
-        state.progressAbs = Math.min(absIndexForThisReveal + 1, Math.max(0, state.bank.length));
-        syncLadderToProgress();
-
-        console.log('[reveal] published', payload);
-      }catch(err){
-        console.error('[reveal] failed:', err);
-        alert('Reveal failed: ' + (err?.message || err));
-      }
-    });
-
-    // Lock (manual)
-    lockBtn.addEventListener('click', async ()=>{
-      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
-      await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
-    });
-
-  // Utility: who is alive right now
-async function getAliveUids(code){
-  const playersSnap = await get(ref(db, `rooms/${code}/players`));
-  const players = playersSnap.exists() ? playersSnap.val() : {};
-  return Object.entries(players)
-    .filter(([,p]) => p.present && !p.eliminated)
-    .map(([uid]) => uid);
-}
-
-// ===== Scoring (refactored with end-of-game + final recap) =====
-async function scoreRound(){
-  const code = state.room;
-  const currentRef = ref(db, `rooms/${code}/current`);
-  const curSnap = await get(currentRef);
-  const cur = curSnap.val();
-  if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
-
-  // Who was alive BEFORE scoring (used if everyone drops out)
-  const aliveBefore = await getAliveUids(code);
-
-  const cIdx = parseInt(correctIndex.value, 10);
-  await update(currentRef, { phase: 'result', correctIndex: cIdx });
-
-  const [ansSnap, playersSnap] = await Promise.all([
-    get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
-    get(ref(db, `rooms/${code}/players`))
-  ]);
-
-  const answers = ansSnap.exists() ? ansSnap.val() : {};
-  const players = playersSnap.exists() ? playersSnap.val() : {};
-
-  // Eliminate wrong / no-answer
-  const updates = {};
-  for (const [uid, p] of Object.entries(players)) {
-    if (!(p.present && !p.eliminated)) continue;
-    const a = answers[uid];
-    const wrongOrMissing = !a || a.index !== cIdx;
-    if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
-  }
-  if (Object.keys(updates).length) await update(ref(db), updates);
-
-  // Aggregate results
-  const counts = [0, 0, 0, 0];
-  let total = 0;
-  for (const a of Object.values(answers)) {
-    if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
-  }
-  await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
-
-  // Decide if game is over
-  const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
-  const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
-  const aliveAfter = Object.entries(playersAfter)
-    .filter(([,p]) => p.present && !p.eliminated)
-    .map(([uid]) => uid);
-
-  // We advance progress on Reveal; if we've just shown the last banked question, bankDone = true
-  const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
-
-  if (aliveAfter.length === 0) {
-    await showFinalRecap({ winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid });
-  } else if (bankDone && cur.phase === 'result') {
-    await showFinalRecap({ winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid });
-  }
-}
-
-// Helpers for final recap rendering
-async function namesFromUids(code, uidList){
-  if (!uidList?.length) return [];
-  const playersSnap = await get(ref(db, `rooms/${code}/players`));
-  const players = playersSnap.exists() ? playersSnap.val() : {};
-  return uidList.map(uid => (players[uid]?.name || 'Player'));
-}
-
-async function showFinalRecap({ winners = [], lastRemaining = [], lastDropQid = null } = {}){
-  const code = state.room;
-  const winnerNames = await namesFromUids(code, winners);
-  const lastNames = await namesFromUids(code, lastRemaining);
-
-  const hadWinners = winnerNames.length > 0;
-
-  finalTitle.textContent = hadWinners ? 'Final results — Winner(s)' : 'Final results — No winners';
-  finalLeftHdr.textContent = hadWinners ? 'Winner(s)' : 'Last remaining';
-  finalRightHdr.textContent = hadWinners ? 'Everyone else' : 'Others';
-
-  finalLeftList.innerHTML = (hadWinners ? winnerNames : lastNames).length
-    ? (hadWinners ? winnerNames : lastNames).map(n => `<div class="row"><span class="tag">🏆</span><div>${n}</div></div>`).join('')
-    : '<div class="muted small">—</div>';
-
-  const playersSnap = await get(ref(db, `rooms/${code}/players`));
-  const players = playersSnap.exists() ? playersSnap.val() : {};
-  const others = Object.values(players).map(p => p?.name || 'Player')
-    .filter(n => !(hadWinners ? winnerNames : lastNames).includes(n));
-
-  finalRightList.innerHTML = others.length
-    ? others.map(n => `<div class="row"><span class="tag">🎮</span><div>${n}</div></div>`).join('')
-    : '<div class="muted small">—</div>';
-
-  finalSub.textContent = hadWinners
-    ? 'Game ended with at least one player still in.'
-    : (lastDropQid ? `Everyone dropped out on question #${lastDropQid}.` : 'Everyone was eliminated on the final question.');
-
-  finalModal?.classList.remove('hide');
-}
-
-    // Score button uses the shared function
-    scoreBtn.addEventListener('click', scoreRound);
-
-    nextBtn.addEventListener('click', async () => {
-  checkpointModal?.classList.add('hide');
-  finalModal?.classList.add('hide');
-  const code = state.room;
-  const metaSnap = await get(ref(db, `rooms/${code}/meta`));
-  const meta = metaSnap.val() || {};
-  const qid = (meta.qIndex || 0) + 1;
-
-  await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
-  await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null, stats: null });
-
-  // If we have a bank, auto-stage the next one
-  if (state.bank.length && state.bankIndex < state.bank.length) {
-    const item = state.bank[state.bankIndex];
-    qPrompt.value = item.prompt;
-    opt0.value = item.options[0] || '';
-    opt1.value = item.options[1] || '';
-    opt2.value = item.options[2] || '';
-    opt3.value = item.options[3] || '';
-    correctIndex.value = String(item.correctIndex || 0);
-    answerWindow.value = String(item.seconds || 30);
-
-    state.stagedIndex = state.bankIndex;
-    state.stagedPercent = Number.isFinite(item.percent) ? item.percent : undefined;
-
-    state.bankIndex++;
-    bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
-  } else {
-    // fallback: blank fields
-    qPrompt.value = opt0.value = opt1.value = opt2.value = opt3.value = '';
-    correctIndex.value = '0';
-    state.stagedPercent = undefined;
-    state.stagedIndex = undefined;
-  }
-});
-
-    // Copy invite
-    copyInvite.addEventListener('click', async ()=>{
-      const url = `${location.origin}${location.pathname}?room=${state.room}`;
-      await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
-      copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
-    });
-
-    // ===== Auto-score when everyone locked =====
-    let locksUnsub = null;
-
-function attachAnswerLockCounters(cur) {
-  // Clean up old listeners
-  if (answersUnsubForQ) { answersUnsubForQ(); answersUnsubForQ = null; }
-  if (locksUnsubForQ)   { locksUnsubForQ();   locksUnsubForQ   = null; }
-
-  // Only track during an active question with a qid
-  if (!cur || !Number.isInteger(cur.qid)) return;
-
-  const code = state.room;
-  const qid  = cur.qid;
-
-  // Helper to compute alive UIDs from latestPlayers
-  const aliveUids = Object.entries(latestPlayers)
-    .filter(([,p]) => p && p.present && !p.eliminated)
-    .map(([uid]) => uid);
-
-  const aliveTotal = aliveUids.length;
-
-  // Answers subscription
-  const ansRef = ref(db, `rooms/${code}/answers/${qid}`);
-  const offAns = onValue(ansRef, (snap) => {
-    const answers = snap.exists() ? snap.val() : {};
-    const answered = aliveUids.filter(uid => answers[uid] && Number.isInteger(answers[uid].index)).length;
-    if (answeredCountEl) answeredCountEl.textContent = `${answered}/${aliveTotal}`;
-  });
-
-  // Locks subscription
-  const locksRef = ref(db, `rooms/${code}/locks/${qid}`);
-  const offLocks = onValue(locksRef, (snap) => {
-    const locks = snap.exists() ? snap.val() : {};
-    const locked = aliveUids.filter(uid => locks[uid] === true).length;
-    if (lockedCountEl) lockedCountEl.textContent = `${locked}/${aliveTotal}`;
-
-    // Nice UX: when everyone is locked, hint by pulsing / enabling the host Lock or Score button
-    if (state.host) {
-      // If host likes to lock early, we can visually nudge:
-      const allLocked = locked >= aliveTotal && aliveTotal > 0;
-      if (allLocked) {
-        // If still in 'revealed', the host can skip manual lock (auto-score will run),
-        // but we also style the Score button to stand out.
-        scoreBtn?.classList.add('btn-ok');
-      } else {
-        scoreBtn?.classList.remove('btn-ok');
-      }
-    }
-  });
-
-  // Keep references to unsubscribe on next qid
-  answersUnsubForQ = offAns;
-  locksUnsubForQ   = offLocks;
-
-  // Initialize counts to 0/alive while data loads
-  if (answeredCountEl) answeredCountEl.textContent = `0/${aliveTotal}`;
-  if (lockedCountEl)   lockedCountEl.textContent   = `0/${aliveTotal}`;
-}
-
-    function listenForAutoScore(){
-      if (!state.host) return;
-      const code = state.room; if (!code) return;
-
-      onValue(ref(db, `rooms/${code}/current`), (snap) => {
-        const cur = snap.val() || {};
-        // Clean previous listener
-        if (locksUnsub) { locksUnsub(); locksUnsub = null; }
-
-        if (cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
-          const locksRef = ref(db, `rooms/${code}/locks/${cur.qid}`);
-          const playersRef = ref(db, `rooms/${code}/players`);
-
-          const locksHandler = () => maybeAutoScore(cur);
-          const playersHandler = () => maybeAutoScore(cur);
-
-          const offLocks = onValue(locksRef, locksHandler);
-          const offPlayers = onValue(playersRef, playersHandler);
-
-          locksUnsub = () => { offLocks && offLocks(); offPlayers && offPlayers(); };
+        if(to){
+          const a = document.getElementById('play');
+          a.setAttribute('href', decodeURIComponent(to));
         }
-      });
-    }
+      }catch(e){ /* ignore */ }
+    })();
 
-    async function maybeAutoScore(curFromArg){
-      const code = state.room;
-      const [curSnap, playersSnap, locksSnap] = await Promise.all([
-        get(ref(db, `rooms/${code}/current`)),
-        get(ref(db, `rooms/${code}/players`)),
-        get(ref(db, `rooms/${code}/locks/${curFromArg.qid}`))
-      ]);
-
-      const cur = curSnap.val() || {};
-      if (cur.phase !== 'revealed') return; // already moved on
-
-      const players = playersSnap.exists() ? playersSnap.val() : {};
-      const aliveUids = Object.entries(players)
-        .filter(([,p]) => p.present && !p.eliminated)
-        .map(([uid]) => uid);
-
-      const locks = locksSnap.exists() ? locksSnap.val() : {};
-      const lockCount = aliveUids.filter(uid => locks[uid] === true).length;
-
-      if (aliveUids.length === 0 || lockCount >= aliveUids.length) {
-        // CAS guard: only if still in 'revealed'
-        const phaseRef = ref(db, `rooms/${code}/current/phase`);
-        const phaseNow = (await get(phaseRef)).val();
-        if (phaseNow === 'revealed') {
-          await scoreRound();
-        }
-      }
-    }
-
-    // Room listeners
-    function wireRoomListeners(){
-      const code = state.room; if(!code) return;
-
-      // meta
-      onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
-        const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
-      });
-
-      // current
-      onValue(ref(db,`rooms/${code}/current`), (snap)=>{
-        state.current = snap.val()||{};
-        const cur = state.current;
-        attachAnswerLockCounters(cur);
-        percentTxt.textContent = (cur && typeof cur.percent === 'number') ? `${cur.percent}%` : '—';
-        const pPercentEl = els('#pPercent');
-        if (pPercentEl) pPercentEl.textContent =
-          (cur && typeof cur.percent === 'number') ? `This question: ${cur.percent}%` : '';
-
-        phaseTxt.textContent = cur.phase || '—';
-        deadlineTxt.textContent = cur.deadline? new Date(cur.deadline).toLocaleTimeString(): '—';
-        livePrompt.textContent = cur.prompt || '—';
-        liveChoices.innerHTML = '';
-        if (cur.choices){
-          cur.choices.forEach((c,i)=>{
-            const div = document.createElement('div');
-            div.className='tag';
-            div.textContent = ['A','B','C','D'][i]+': '+c;
-            liveChoices.appendChild(div);
-          });
-        }
-
-        if (state.host){
-          const counts = cur.stats && cur.stats.counts
-            ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
-            : null;
-          renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
-          maybeShowCheckpointRecapIfNeeded(cur);
-        }
-
-        if (!state.host){
-          statusTxt.textContent = state.meEliminated ? 'spectating' : (cur.phase || '—');
-          if (cur.phase === 'revealed' || cur.phase === 'locked' || cur.phase === 'result'){
-            msg.classList.add('hide');
-            qArea.classList.remove('hide');
-            pPrompt.textContent = cur.prompt || '—';
-            renderAnswerButtons(cur);
-            if (cur.phase === 'revealed') { startTimer(cur.deadline); } else { stopTimer(); }
-
-            const countsP = cur.stats && cur.stats.counts
-              ? [cur.stats.counts[0]||0,cur.stats.counts[1]||0,cur.stats.counts[2]||0,cur.stats.counts[3]||0]
-              : null;
-            if (cur.phase === 'result') {
-              renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
-              revealCorrect(cur);
-              maybeShowCheckpointRecapIfNeeded(cur);
-            } else {
-              resultsPlayer.innerHTML = '';
-            }
-          } else {
-            msg.classList.remove('hide');
-            qArea.classList.add('hide');
-            resultsPlayer.innerHTML = '';
-          }
-
-          // Player lock button state
-          if (lockAnswerBtn) {
-            lockAnswerBtn.disabled = (cur.phase !== 'revealed');
-          }
-        }
-      });
-
-      // players
-      onValue(ref(db,`rooms/${code}/players`), (snap)=>{
-        const players = snap.val()||{};
-        latestPlayers = players;
-        const entries = Object.entries(players);
-        const alive = entries.filter(([,p])=>p.present && !p.eliminated).length;
-        aliveCount.textContent = alive;
-
-        if (state.host){
-          // Sort: alive+present first, then eliminated/offline
-          const sorted = entries.sort(([,a],[,b])=>{
-            const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); // 3=alive,1=present-elim,0=offline
-            return rank(b) - rank(a);
-          });
-          playersList.innerHTML = '';
-          sorted.forEach(([uid,p])=>{
-            const row = document.createElement('div'); row.className='row';
-            const name = document.createElement('div'); name.textContent = p.name||'Player';
-            const tags = document.createElement('div'); tags.className='row';
-            tags.innerHTML = `
-              <span class="tag">${p.present? 'present':'offline'}</span>
-              <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>
-            `;
-            row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
-          });
-        } else {
-          // Update my eliminated banner + render roster for players
-          const me = players[state.uid]||{};
-          state.meEliminated = !!me.eliminated;
-          eliminated.classList.toggle('hide', !state.meEliminated);
-
-          const listEl = document.getElementById('playersListPlayer');
-          if (listEl){
-            const sorted = entries.sort(([,a],[,b])=>{
-              const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2);
-              return rank(b) - rank(a);
-            });
-            listEl.innerHTML = '';
-            sorted.forEach(([,p])=>{
-              const row = document.createElement('div'); row.className='row';
-              const name = document.createElement('div'); name.textContent = p.name||'Player';
-              const tags = document.createElement('div'); tags.className='row';
-              tags.innerHTML = `
-                <span class="tag">${p.present? 'present':'offline'}</span>
-                <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>
-              `;
-              row.appendChild(name); row.appendChild(tags); listEl.appendChild(row);
-            });
-          }
-        }
-      });
-    }
-
-    function renderAnswerButtons(cur){
-      answerBtns.innerHTML = '';
-      const canAnswer = cur.phase === 'revealed' && !state.meEliminated;
-      ['A','B','C','D'].forEach((letter,i)=>{
-        const btn = document.createElement('button'); btn.className='answerBtn';
-        btn.textContent = `${letter}. ${cur.choices?.[i]||''}`;
-        btn.disabled = !canAnswer;
-        if (canAnswer) btn.addEventListener('click', ()=> submitAnswer(i));
-        answerBtns.appendChild(btn);
-      });
-      if (lockAnswerBtn) {
-        lockAnswerBtn.disabled = true; // re-disable until they answer
-      }
-    }
-
-    // Client-side guard against late clicks; clearer error handling
-    async function submitAnswer(index){
-      const code = state.room; const cur = state.current;
-      if (!cur || cur.phase!=='revealed') return;
-      const nowMs = Date.now() + serverOffset;
-      if (typeof cur.deadline === 'number' && nowMs > cur.deadline) {
-        alert('Too late — time’s up!');
-        return;
-      }
-      const uid = auth.currentUser?.uid || state.uid;
-      if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
-      const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
-      try{
-        await set(ansRef, { index, at: nowMs });
-        $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
-        if (lockAnswerBtn) lockAnswerBtn.disabled = false; // allow locking now
-      }catch(err){
-        alert('Answer not accepted — timer likely expired.');
-        console.error(err);
-      }
-    }
-
-    async function lockMyAnswer(){
-      const code = state.room;
-      const cur  = state.current;
-      const uid  = auth.currentUser?.uid || state.uid;
-
-      if (!cur || cur.phase !== 'revealed' || !uid) return;
-      const lockRef = ref(db, `rooms/${code}/locks/${cur.qid}/${uid}`);
-      try{
-        await set(lockRef, true);
-        if (lockAnswerBtn) lockAnswerBtn.disabled = true;
-      }catch(e){
-        console.error('Lock failed', e);
-        alert('Could not lock answer (maybe time is up?).');
-      }
-    }
-
-    if (lockAnswerBtn) lockAnswerBtn.addEventListener('click', lockMyAnswer);
-
-    function revealCorrect(cur){
-      if (cur.correctIndex == null) return;
-      $$('.answerBtn').forEach((b,bi)=>{
-        b.classList.toggle('correct', bi===cur.correctIndex);
-        b.classList.toggle('wrong', bi!==cur.correctIndex);
-        b.disabled = true;
-      });
-    }
-
-    function startTimer(deadline){
-      stopTimer();
-      const tick = ()=>{
-        const ms = Math.max(0, deadline - (Date.now() + serverOffset));
-        const s = Math.ceil(ms/1000); timeLeft.textContent = String(s);
-        if (ms <= 0) stopTimer();
-      };
-      tick(); state.timerInt = setInterval(tick, 200);
-    }
-    function stopTimer()
-    { if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
-
-// Show checkpoint recap when a result lands on a checkpoint index
-async function maybeShowCheckpointRecapIfNeeded(curObj) {
-  if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
-
-  // The just-finished question index inside the current 10-pack
-const within = ((curObj.qid - 1) % 10);
-  
-  // Use the ladder's checkpoints set if available; fallback to [4,7]
-  const isCheckpointIndex = ladder?.checkpoints?.has
-    ? ladder.checkpoints.has(within)
-    : [4,7].includes(within);
-  if (!isCheckpointIndex) return;
-
-  // Avoid re-showing for the same qid
-  if (shownCheckpointForQid === curObj.qid) return;
-  shownCheckpointForQid = curObj.qid;
-
-  // Build lists
-  const code = state.room;
-  const playersSnap = await get(ref(db, `rooms/${code}/players`));
-  const players = playersSnap.exists() ? playersSnap.val() : {};
-
-  const alive = [];
-  const out = [];
-  for (const p of Object.values(players)) {
-    if (!p || !p.name) continue;
-    if (p.present && !p.eliminated) alive.push(p.name);
-    else out.push(p.name || 'Player');
-  }
-
-  cpAliveList.innerHTML = alive.length
-    ? alive.map(n => `<div class='row'><span class='tag'>✅ in</span><div>${n}</div></div>`).join('')
-    : '<div class="muted small">No one is currently in.</div>';
-
-  cpOutList.innerHTML = out.length
-    ? out.map(n => `<div class='row'><span class='tag'>❌ out</span><div>${n}</div></div>`).join('')
-    : '<div class="muted small">No one is out yet.</div>';
-
-  checkpointModal?.classList.remove('hide');
-}
-
-    
-    function renderResults(container, countsArr, total, correctIdx){
-      if(!container) return;
-      if(!countsArr){ container.innerHTML=''; return; }
-      const labels = ['A','B','C','D'];
-      const max = Math.max(1, ...countsArr);
-      container.innerHTML = countsArr.map((n,i)=>{
-        const pct = total? Math.round(n*100/total) : 0;
-        const barW = Math.max(5, Math.round((n/max)*100));
-        const strong = (i===Number(correctIdx)) ? 'font-weight:700;' : '';
-        return `<div class="row" style="gap:8px; align-items:center">
-          <div class="tag" style="min-width:2rem; ${strong}">${labels[i]}</div>
-          <div style="flex:1; border:1px solid var(--edge); border-radius:999px; overflow:hidden">
-            <div style="height:12px; width:${barW}%; background:#1f2a55"></div>
-          </div>
-          <div class="small" style="min-width:72px; text-align:right">${n} (${pct}%)</div>
-        </div>`;
-      }).join('');
-    }
-
-    // ======== Bank parsing + staging ========
-    function parseBank(text){
-      text = (text || '').trim();
-      if (!text) return [];
-
-      // Try JSON first
-      try {
-        const data = JSON.parse(text);
-        const arr = Array.isArray(data) ? data : [data];
-        return arr.map(normalizeItem).filter(Boolean);
-      } catch (_) {
-        // fall through to CSV
-      }
-
-      // CSV fallback (header: prompt,A,B,C,D,correct,seconds,percent)
-      const lines = text
-        .split('\n')
-        .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l))
-        .filter(Boolean);
-
-      if (lines.length < 2) return [];
-
-      const header = lines[0].split(',').map(h => h.trim().toLowerCase());
-      const idx = k => header.indexOf(k);
-
-      const out = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',');
-        const item = {
-          prompt:  cols[idx('prompt')]?.trim(),
-          A:       cols[idx('a')]?.trim(),
-          B:       cols[idx('b')]?.trim(),
-          C:       cols[idx('c')]?.trim(),
-          D:       cols[idx('d')]?.trim(),
-          correct: cols[idx('correct')]?.trim(),
-          seconds: Number(cols[idx('seconds')] || 30),
-          percent: Number(cols[idx('percent')] || NaN)
-        };
-        const norm = normalizeItem(item);
-        if (norm) out.push(norm);
-      }
-      return out;
-    }
-
-    function normalizeItem(raw){
-      if (!raw) return null;
-      const prompt = raw.prompt || raw.question || '';
-      let options = raw.options || [raw.A, raw.B, raw.C, raw.D];
-      if (!Array.isArray(options) || options.length < 4) return null;
-      options = options.slice(0, 4);
-
-      let correctIndex = (typeof raw.correctIndex === 'number') ? raw.correctIndex : null;
-      if (correctIndex == null && typeof raw.correct === 'string') {
-        const map = { A:0, B:1, C:2, D:3 };
-        correctIndex = map[(raw.correct || '').toUpperCase()];
-      }
-      const seconds = Number(raw.seconds || 30);
-
-      // Optional percent
-      let percent = Number(raw.percent);
-      if (!Number.isFinite(percent)) percent = undefined;
-
-      if (!(Number.isInteger(correctIndex) && correctIndex >= 0 && correctIndex <= 3)) return null;
-      return { prompt, options, correctIndex, seconds, ...(percent!=null ? {percent}: {}) };
-    }
-
-    // Import bank
-    importBankBtn.addEventListener('click', ()=>{
-      const arr = parseBank(bankText.value);
-      state.bank = arr;
-      state.bankIndex = 0;
-      state.progressAbs = 0;                  // reset progress when loading
-      bankCount.textContent = String(arr.length);
-      bankNext.textContent = String(arr.length ? 1 : 0);
-      syncLadderToProgress();                 // draw ladder for first question
-      alert(arr.length ? `Loaded ${arr.length} questions` : 'No valid questions found');
-    });
-
-    // Stage next from bank
-    stageNextBtn.addEventListener('click', ()=>{
-      const i = state.bankIndex;
-      if (!state.bank.length || i >= state.bank.length) { alert('Bank empty or finished'); return; }
-      const item = state.bank[i];
-      qPrompt.value = item.prompt;
-      opt0.value = item.options[0] || '';
-      opt1.value = item.options[1] || '';
-      opt2.value = item.options[2] || '';
-      opt3.value = item.options[3] || '';
-      correctIndex.value = String(item.correctIndex || 0);
-      answerWindow.value = String(item.seconds || 30);
-
-      // Only stage a percent if the item explicitly has one; else Reveal computes from progressAbs
-      state.stagedIndex = i;
-      state.stagedPercent = Number.isFinite(item.percent) ? item.percent : undefined;
-
-      // move the bank cursor forward (does NOT move ladder/progress)
-      state.bankIndex++;
-      bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
-    });
-
+    // Optional: preconnect for faster asset fetch when user clicks Play
+    (function(){
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'document';
+      link.href = 'index.html';
+      document.head.appendChild(link);
+    })();
   </script>
 </body>
 </html>
