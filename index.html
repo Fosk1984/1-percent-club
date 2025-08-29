@@ -387,6 +387,49 @@ body.is-host #playerUI{display:none;}
 
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
+
+    // ===== Front door / landing switching =====
+document.addEventListener('DOMContentLoaded', () => {
+  const $ = (id) => document.getElementById(id);
+
+  const frontDoor      = $('frontDoor');      // splash with background + two buttons
+  const bigPlay        = $('bigPlay');        // "Play" button in the center
+  const hostShortcut   = $('hostShortcut');   // "Host" button bottom-left
+
+  const landing        = $('landing');        // panel that contains both cards
+  const hostCreateCard = $('hostCreateCard'); // host card wrapper
+  const playerJoinCard = $('playerJoinCard'); // player card wrapper
+
+  // helper to show only the requested card on the landing panel
+  function showLanding(which) {
+    frontDoor?.classList.add('hide');     // hide the hero/splash
+    landing?.classList.remove('hide');    // show the landing container
+
+    if (which === 'player') {
+      playerJoinCard?.classList.remove('hide');
+      hostCreateCard?.classList.add('hide');
+      // focus the join code field if present
+      const joinCode = $('joinCode');
+      joinCode?.focus();
+    } else { // 'host'
+      hostCreateCard?.classList.remove('hide');
+      playerJoinCard?.classList.add('hide');
+      const hostRoomCode = $('hostRoomCode');
+      hostRoomCode?.focus();
+    }
+  }
+
+  // wire buttons
+  bigPlay?.addEventListener('click',  () => showLanding('player'));
+  hostShortcut?.addEventListener('click', () => showLanding('host'));
+
+  // optional: support URL shortcuts like ?mode=play or ?mode=host
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('mode');
+  if (mode === 'play') showLanding('player');
+  if (mode === 'host') showLanding('host');
+});
+
     
     // --- BG image probe (helps debug path issues) ---
 (function(){
