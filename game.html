@@ -1107,7 +1107,6 @@ function attachAnswerLockCounters(cur) {
             lockAnswerBtn.disabled = (cur.phase !== 'revealed');
           }
         }
-      });
 
       // players
       onValue(ref(db,`rooms/${code}/players`), (snap)=>{
