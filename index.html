@@ -418,61 +418,104 @@ body.is-host #playerUI{display:none;}
       stagedIndex: undefined
     };
 
-    // UI elements
-    const hostRoomCode = els('#hostRoomCode');
-    const playerLimitEl = els('#playerLimit');
-    const createRoomBtn = els('#createRoomBtn');
-    const displayName = els('#displayName');
-    const joinBtn = els('#joinBtn');
+   // ===== UI ELEMENTS (single source of truth) =====
 
-    const hostUI = els('#hostUI');
-    const roomCodeHost = els('#roomCodeHost');
-    const aliveCount = els('#aliveCount');
-    const qNumber = els('#qNumber');
-    const copyInvite = els('#copyInvite');
-    const playersList = els('#playersList');
-    const phaseTxt = els('#phaseTxt');
-    const deadlineTxt = els('#deadlineTxt');
-    const livePrompt = els('#livePrompt');
-    const liveChoices = els('#liveChoices');
-    const hostResults = els('#hostResults');
+// Front door / splash
+const frontDoor       = els('#frontDoor');
+const bigPlay         = els('#bigPlay');          // "Play" button on splash
+const hostShortcut    = els('#hostShortcut');     // "Host" shortcut on splash
 
-    const qPrompt = els('#qPrompt');
-    const opt0 = els('#opt0');
-    const opt1 = els('#opt1');
-    const opt2 = els('#opt2');
-    const opt3 = els('#opt3');
-    const correctIndex = els('#correctIndex');
-    const answerWindow = els('#answerWindow');
-    const stageHiddenBtn = els('#stageHiddenBtn');
-    const revealBtn = els('#revealBtn');
-    const lockBtn = els('#lockBtn');
-    const scoreBtn = els('#scoreBtn');
-    const nextBtn = els('#nextBtn');
+// Landing containers
+const landing         = els('#landing');
+const hostLanding     = els('#hostLanding');      // grid wrapper (optional)
+const hostCreateCard  = els('#hostCreateCard');   // host card container
+const playerJoinCard  = els('#playerJoinCard');   // player card container
+const hostCard        = els('#hostCard');         // if you use this id elsewhere
+const playerCard      = els('#playerCard');       // if you use this id elsewhere
 
-    const playerUI = els('#playerUI');
-    const roomCodePlayer = els('#roomCodePlayer');
-    const meName = els('#meName');
-    const statusTxt = els('#statusTxt');
-    const timeLeft = els('#timeLeft');
-    const pPrompt = els('#pPrompt');
-    const answerBtns = els('#answerBtns');
-    const resultsPlayer = els('#resultsPlayer');
-    const qArea = els('#qArea');
-    const msg = els('#msg');
-    const eliminated = els('#eliminated');
-    
-    // Splash + landing panel refs
+// Host UI (top bar + panels)
+const hostUI          = els('#hostUI');
+const roomCodeHost    = els('#roomCodeHost');
+const aliveCount      = els('#aliveCount');
+const qNumber         = els('#qNumber');
+const copyInvite      = els('#copyInvite');
+const playersList     = els('#playersList');
 
-// === FRONT DOOR / LANDING / ROLE GUARD (global) ===
-const frontDoor       = document.getElementById('frontDoor');
-const bigPlay         = document.getElementById('bigPlay');
-const hostShortcut    = document.getElementById('hostShortcut');
-const landing         = document.getElementById('landing');
-const hostCreateCard  = document.getElementById('hostCreateCard');
-const playerJoinCard  = document.getElementById('playerJoinCard');
-const joinCode        = document.getElementById('joinCode');
-const hostRoomCode    = document.getElementById('hostRoomCode');
+// Live question (host view)
+const phaseTxt        = els('#phaseTxt');
+const deadlineTxt     = els('#deadlineTxt');
+const percentTxt      = els('#percentTxt');
+const answeredCountEl = els('#answeredCount');    // 0/0 pill
+const lockedCountEl   = els('#lockedCount');      // 0/0 pill
+const livePrompt      = els('#livePrompt');
+const liveChoices     = els('#liveChoices');
+const hostResults     = els('#hostResults');
+
+// Question builder
+const qPrompt         = els('#qPrompt');
+const opt0            = els('#opt0');
+const opt1            = els('#opt1');
+const opt2            = els('#opt2');
+const opt3            = els('#opt3');
+const correctIndex    = els('#correctIndex');
+const answerWindow    = els('#answerWindow');
+const revealBtn       = els('#revealBtn');
+const lockBtn         = els('#lockBtn');
+const scoreBtn        = els('#scoreBtn');
+const nextBtn         = els('#nextBtn');
+
+// Bank controls
+const bankText        = els('#bankText');
+const importBankBtn   = els('#importBankBtn');
+const stageNextBtn    = els('#stageNextBtn');
+const bankCount       = els('#bankCount');
+const bankNext        = els('#bankNext');
+
+// Player UI
+const playerUI        = els('#playerUI');
+const roomCodePlayer  = els('#roomCodePlayer');
+const meName          = els('#meName');
+const statusTxt       = els('#statusTxt');
+const timeLeft        = els('#timeLeft');
+const pPrompt         = els('#pPrompt');
+const pPercent        = els('#pPercent');
+const answerBtns      = els('#answerBtns');
+const resultsPlayer   = els('#resultsPlayer');
+const qArea           = els('#qArea');
+const msg             = els('#msg');
+const eliminated      = els('#eliminated');
+const playersListPlayer = els('#playersListPlayer');
+const lockAnswerBtn   = els('#lockAnswerBtn');
+
+// Join form
+const joinCode        = els('#joinCode');
+const displayName     = els('#displayName');
+const joinBtn         = els('#joinBtn');
+
+// Host create form
+const hostRoomCode    = els('#hostRoomCode');
+const playerLimitEl   = els('#playerLimit');
+const createRoomBtn   = els('#createRoomBtn');
+
+// Modals: checkpoint
+const checkpointModal = els('#checkpointModal');
+const cpAliveList     = els('#cpAliveList');
+const cpOutList       = els('#cpOutList');
+const closeCheckpointBtn = els('#closeCheckpointBtn');
+
+// Modals: final recap
+const finalModal      = els('#finalModal');
+const closeFinalBtn   = els('#closeFinalBtn');
+const finalTitle      = els('#finalTitle');
+const finalLeftHdr    = els('#finalLeftHdr');
+const finalRightHdr   = els('#finalRightHdr');
+const finalLeftList   = els('#finalLeftList');
+const finalRightList  = els('#finalRightList');
+const finalSub        = els('#finalSub');
+
+// Ladder root
+const ladderEl        = els('#ladder');
+const joinCode        = els('#joinCode');
 
 function showLandingForPlayer(e){
   e?.preventDefault();
