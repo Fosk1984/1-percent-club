@@ -130,66 +130,7 @@ body.is-host #playerUI{display:none;}
         <span class="hint">You’ll join as host (not a contestant).</span>
       </div>
     </div>
-
-    <!-- Player join card -->
-    <div class="card" id="playerJoinCard">
-      <h2>Players: join a room</h2>
-      <div class="grid g2">
-        <div>
-          <label>Room code</label>
-          <input id="joinCode" maxlength="6" placeholder="Enter code" />
-        </div>
-        <div>
-          <label>Your display name</label>
-          <input id="displayName" maxlength="24" placeholder="e.g. Alex" />
-        </div>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <button id="joinBtn" class="btn-ok">Join game</button>
-        <span class="hint">Up to 80 players. Eliminated on wrong answer.</span>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-          <h2>Host: create a room</h2>
-          <div class="grid g2">
-            <div>
-              <label>Room code (optional)</label>
-              <input id="hostRoomCode" maxlength="6" placeholder="e.g. 7H2K9Q" />
-            </div>
-            <div>
-              <label>Player limit</label>
-              <input id="playerLimit" type="number" min="2" max="80" value="80" />
-            </div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button id="createRoomBtn" class="btn-acc">Create room</button>
-            <span class="hint">You’ll join as host (not a contestant).</span>
-          </div>
-        </div>
-        <div class="card">
-        <div id="playerJoinCard" class="card">
-          <h2>Players: join a room</h2>
-          <div class="grid g2">
-            <div>
-              <label>Room code</label>
-              <input id="joinCode" maxlength="6" placeholder="Enter code" />
-            </div>
-            <div>
-              <label>Your display name</label>
-              <input id="displayName" maxlength="24" placeholder="e.g. Alex" />
-            </div>
-          </div>
-          <div class="row" style="margin-top:10px">
-            <button id="joinBtn" class="btn-ok">Join game</button>
-            <span class="hint">Up to 80 players. Eliminated on wrong answer.</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
+    
     <div id="hostUI" class="card hide">
       <div class="row">
         <div class="pill">Room: <span id="roomCodeHost" class="mono"></span></div>
@@ -387,49 +328,6 @@ body.is-host #playerUI{display:none;}
 
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
-
-    // ===== Front door / landing switching =====
-document.addEventListener('DOMContentLoaded', () => {
-  const $ = (id) => document.getElementById(id);
-
-  const frontDoor      = $('frontDoor');      // splash with background + two buttons
-  const bigPlay        = $('bigPlay');        // "Play" button in the center
-  const hostShortcut   = $('hostShortcut');   // "Host" button bottom-left
-
-  const landing        = $('landing');        // panel that contains both cards
-  const hostCreateCard = $('hostCreateCard'); // host card wrapper
-  const playerJoinCard = $('playerJoinCard'); // player card wrapper
-
-  // helper to show only the requested card on the landing panel
-  function showLanding(which) {
-    frontDoor?.classList.add('hide');     // hide the hero/splash
-    landing?.classList.remove('hide');    // show the landing container
-
-    if (which === 'player') {
-      playerJoinCard?.classList.remove('hide');
-      hostCreateCard?.classList.add('hide');
-      // focus the join code field if present
-      const joinCode = $('joinCode');
-      joinCode?.focus();
-    } else { // 'host'
-      hostCreateCard?.classList.remove('hide');
-      playerJoinCard?.classList.add('hide');
-      const hostRoomCode = $('hostRoomCode');
-      hostRoomCode?.focus();
-    }
-  }
-
-  // wire buttons
-  bigPlay?.addEventListener('click',  () => showLanding('player'));
-  hostShortcut?.addEventListener('click', () => showLanding('host'));
-
-  // optional: support URL shortcuts like ?mode=play or ?mode=host
-  const params = new URLSearchParams(location.search);
-  const mode = params.get('mode');
-  if (mode === 'play') showLanding('player');
-  if (mode === 'host') showLanding('host');
-});
-
     
     // --- BG image probe (helps debug path issues) ---
 (function(){
@@ -460,128 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
       stagedPercent: undefined,
       stagedIndex: undefined
     };
-
-   // ===== UI ELEMENTS (single source of truth) =====
-
-// Front door / splash
-const frontDoor       = els('#frontDoor');
-const bigPlay         = els('#bigPlay');          // "Play" button on splash
-const hostShortcut    = els('#hostShortcut');     // "Host" shortcut on splash
-
-// Landing containers
-const landing         = els('#landing');
-const hostLanding     = els('#hostLanding');      // grid wrapper (optional)
-const hostCreateCard  = els('#hostCreateCard');   // host card container
-const playerJoinCard  = els('#playerJoinCard');   // player card container
-const hostCard        = els('#hostCard');         // if you use this id elsewhere
-const playerCard      = els('#playerCard');       // if you use this id elsewhere
-
-// Host UI (top bar + panels)
-const hostUI          = els('#hostUI');
-const roomCodeHost    = els('#roomCodeHost');
-const aliveCount      = els('#aliveCount');
-const qNumber         = els('#qNumber');
-const copyInvite      = els('#copyInvite');
-const playersList     = els('#playersList');
-
-// Live question (host view)
-const phaseTxt        = els('#phaseTxt');
-const deadlineTxt     = els('#deadlineTxt');
-const percentTxt      = els('#percentTxt');
-const answeredCountEl = els('#answeredCount');    // 0/0 pill
-const lockedCountEl   = els('#lockedCount');      // 0/0 pill
-const livePrompt      = els('#livePrompt');
-const liveChoices     = els('#liveChoices');
-const hostResults     = els('#hostResults');
-
-// Question builder
-const qPrompt         = els('#qPrompt');
-const opt0            = els('#opt0');
-const opt1            = els('#opt1');
-const opt2            = els('#opt2');
-const opt3            = els('#opt3');
-const correctIndex    = els('#correctIndex');
-const answerWindow    = els('#answerWindow');
-const revealBtn       = els('#revealBtn');
-const lockBtn         = els('#lockBtn');
-const scoreBtn        = els('#scoreBtn');
-const nextBtn         = els('#nextBtn');
-
-// Bank controls
-const bankText        = els('#bankText');
-const importBankBtn   = els('#importBankBtn');
-const stageNextBtn    = els('#stageNextBtn');
-const bankCount       = els('#bankCount');
-const bankNext        = els('#bankNext');
-
-// Player UI
-const playerUI        = els('#playerUI');
-const roomCodePlayer  = els('#roomCodePlayer');
-const meName          = els('#meName');
-const statusTxt       = els('#statusTxt');
-const timeLeft        = els('#timeLeft');
-const pPrompt         = els('#pPrompt');
-const pPercent        = els('#pPercent');
-const answerBtns      = els('#answerBtns');
-const resultsPlayer   = els('#resultsPlayer');
-const qArea           = els('#qArea');
-const msg             = els('#msg');
-const eliminated      = els('#eliminated');
-const playersListPlayer = els('#playersListPlayer');
-const lockAnswerBtn   = els('#lockAnswerBtn');
-
-// Join form
-const joinCode        = els('#joinCode');
-const displayName     = els('#displayName');
-const joinBtn         = els('#joinBtn');
-
-// Host create form
-const hostRoomCode    = els('#hostRoomCode');
-const playerLimitEl   = els('#playerLimit');
-const createRoomBtn   = els('#createRoomBtn');
-
-// Modals: checkpoint
-const checkpointModal = els('#checkpointModal');
-const cpAliveList     = els('#cpAliveList');
-const cpOutList       = els('#cpOutList');
-const closeCheckpointBtn = els('#closeCheckpointBtn');
-
-// Modals: final recap
-const finalModal      = els('#finalModal');
-const closeFinalBtn   = els('#closeFinalBtn');
-const finalTitle      = els('#finalTitle');
-const finalLeftHdr    = els('#finalLeftHdr');
-const finalRightHdr   = els('#finalRightHdr');
-const finalLeftList   = els('#finalLeftList');
-const finalRightList  = els('#finalRightList');
-const finalSub        = els('#finalSub');
-
-// Ladder root
-const ladderEl        = els('#ladder');
-
-function showLandingForPlayer(e){
-  e?.preventDefault();
-  frontDoor?.classList.add('hide');
-  landing?.classList.remove('hide');
-  hostCreateCard?.classList.add('hide');
-  playerJoinCard?.classList.remove('hide');
-  document.body.classList.remove('is-host');
-  joinCode?.focus();
-}
-
-function showLandingForHost(e){
-  e?.preventDefault();
-  frontDoor?.classList.add('hide');
-  landing?.classList.remove('hide');
-  hostCreateCard?.classList.remove('hide');
-  playerJoinCard?.classList.add('hide');
-  document.body.classList.add('is-host');
-  hostRoomCode?.focus();
-}
-
-// Wire buttons
-bigPlay?.addEventListener('click', showLandingForPlayer);
-hostShortcut?.addEventListener('click', showLandingForHost);
 
 // Optional URL shortcuts: ?mode=host or ?mode=play
 const params = new URLSearchParams(location.search);
@@ -628,9 +404,6 @@ let shownCheckpointForQid = null;
 
 if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
 if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
-
-if (bigPlay) bigPlay.addEventListener('click', showPlayerJoin);
-if (hostShortcut) hostShortcut.addEventListener('click', showHostCreate);
 
     // --- Live caches for answer/lock counters (not in `state`)
     let latestPlayers = {};          // updated by the /players listener
@@ -1290,6 +1063,7 @@ function attachAnswerLockCounters(cur) {
         console.error(err);
       }
     }
+
 
     async function lockMyAnswer(){
       const code = state.room;
