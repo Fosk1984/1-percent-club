@@ -756,31 +756,6 @@ if (hostShortcut) hostShortcut.addEventListener('click', showHostCreate);
       enterPlayer();
     });
 
-   function enterHost(){
-  document.body.classList.add('is-host');
-  landing.classList.add('hide');
-  hostUI.classList.remove('hide');
-  // playerUI is auto-hidden by CSS when body.has .is-host
-  roomCodeHost.textContent = state.room;
-  wireRoomListeners();
-  listenForAutoScore();
-  syncLadderToProgress();
-}
-
-   function enterPlayer(){
-  document.body.classList.remove('is-host');
-  landing.classList.add('hide');
-
-  // IMPORTANT: keep host hidden for players
-  hostUI.classList.add('hide');
-  playerUI.classList.remove('hide');
-
-  roomCodePlayer.textContent = state.room;
-  meName.textContent = state.me?.name || '';
-  wireRoomListeners();
-}
-
-
     async function ensureArmedQuestion(db, roomCode){
       const metaRef = ref(db, `rooms/${roomCode}/meta`);
       const curRef  = ref(db, `rooms/${roomCode}/current`);
