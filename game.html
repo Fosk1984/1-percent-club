@@ -896,6 +896,14 @@ function attachAnswerLockCounters(cur) {
 
           locksUnsub = () => { offLocks && offLocks(); offPlayers && offPlayers(); };
         }
+
+        // Advance ladder when a question has *finished*
+        if (cur && cur.phase === 'result' && Number.isInteger(cur.qid)) {
+        // cur.qid is 1-based; using it directly means “cleared qid” steps.
+        state.progressAbs = cur.qid;
+        syncLadderToProgress();
+      }
+
       });
     }
 
@@ -936,6 +944,11 @@ function attachAnswerLockCounters(cur) {
       onValue(ref(db,`rooms/${code}/meta`), (snap)=>{
         const meta = snap.val()||{}; qNumber.textContent = meta.qIndex||0;
       });
+      // Keep ladder roughly in step with server meta (useful on refresh)
+    if (Number.isInteger(meta.qIndex)) {
+  state.progressAbs = meta.qIndex;  // qIndex is 0 before Q1, 1 after Q1 armed/finished
+  syncLadderToProgress();
+}
 
       // current
       onValue(ref(db,`rooms/${code}/current`), (snap)=>{
