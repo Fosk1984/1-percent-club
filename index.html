@@ -7,27 +7,6 @@
   <meta name="description" content="Host-controlled 1% Club style quiz with up to 80 players. Built for GitHub Pages + Firebase Realtime Database.">
   <link rel="icon" href="data:,"><!-- silence favicon 404 on GitHub Pages -->
   <style>
-
-    body {
-  margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  color: var(--ink);
-
-  /* fallback background */
-  background: radial-gradient(1200px 800px at 15% -10%, #182449 0%, #0f1730 40%, var(--bg) 100%);
-
-  /* image background */
-  background-image: url('./assets/background.png');
-  background-repeat: no-repeat;
-  background-position: center center;
-
-  /* Option 1: crop edges but always fills screen */
-  background-size: cover;
-
-  /* Option 2: show whole image, may leave borders */
-  /* background-size: contain; background-color: #000; */
-}
-
     :root{
       --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf; --edge:#22315c;
       --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b;
@@ -399,10 +378,6 @@ body.is-host #playerUI{display:none;}
     const qArea = els('#qArea');
     const msg = els('#msg');
     const eliminated = els('#eliminated');
-
-document.body.classList.add('landing-bg');
-
-    
     const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
 // Modal elements (checkpoint)
@@ -605,8 +580,7 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
     });
 
     function enterHost(){
-      document.body.classList.remove('landing-bg');
-      document.body.classList.remove('is-host');
+      document.body.classList.add('is-host');
       landing.classList.add('hide');
       hostUI.classList.remove('hide');
       roomCodeHost.textContent = state.room;
@@ -615,7 +589,6 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
       syncLadderToProgress(); // keep ladder in sync from the start
     }
     function enterPlayer(){
-      document.body.classList.remove('landing-bg');
       document.body.classList.remove('is-host');
       landing.classList.add('hide');
       hostUI.classList.remove('hide');
