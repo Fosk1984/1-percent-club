@@ -466,26 +466,61 @@ body.is-host #playerUI{display:none;}
     
     // Splash + landing panel refs
 
-// === FRONT DOOR / LANDING / ROLE GUARD (single source of truth) ===
-(() => {
-  const frontDoor       = document.getElementById('frontDoor');
-  const bigPlay         = document.getElementById('bigPlay');
-  const hostShortcut    = document.getElementById('hostShortcut');
-  const landing         = document.getElementById('landing');
-  const hostCreateCard  = document.getElementById('hostCreateCard');
-  const playerJoinCard  = document.getElementById('playerJoinCard');
-  const joinCode        = document.getElementById('joinCode');
-  const hostRoomCode    = document.getElementById('hostRoomCode');
-  
-// === CORRECT enterHost / enterPlayer ===
-// Replace your existing versions with these:
+// === FRONT DOOR / LANDING / ROLE GUARD (global) ===
+const frontDoor       = document.getElementById('frontDoor');
+const bigPlay         = document.getElementById('bigPlay');
+const hostShortcut    = document.getElementById('hostShortcut');
+const landing         = document.getElementById('landing');
+const hostCreateCard  = document.getElementById('hostCreateCard');
+const playerJoinCard  = document.getElementById('playerJoinCard');
+const joinCode        = document.getElementById('joinCode');
+const hostRoomCode    = document.getElementById('hostRoomCode');
 
+function showLandingForPlayer(e){
+  e?.preventDefault();
+  frontDoor?.classList.add('hide');
+  landing?.classList.remove('hide');
+  hostCreateCard?.classList.add('hide');
+  playerJoinCard?.classList.remove('hide');
+  document.body.classList.remove('is-host');
+  joinCode?.focus();
+}
+
+function showLandingForHost(e){
+  e?.preventDefault();
+  frontDoor?.classList.add('hide');
+  landing?.classList.remove('hide');
+  hostCreateCard?.classList.remove('hide');
+  playerJoinCard?.classList.add('hide');
+  document.body.classList.add('is-host');
+  hostRoomCode?.focus();
+}
+
+// Wire buttons
+bigPlay?.addEventListener('click', showLandingForPlayer);
+hostShortcut?.addEventListener('click', showLandingForHost);
+
+// Optional URL shortcuts: ?mode=host or ?mode=play
+const params = new URLSearchParams(location.search);
+const mode = params.get('mode');
+if (mode === 'host') showLandingForHost();
+else if (mode === 'play') showLandingForPlayer();
+
+// Debug log
+console.log('[frontdoor wired]', {
+  frontDoor: !!frontDoor, bigPlay: !!bigPlay, hostShortcut: !!hostShortcut,
+  landing: !!landing, hostCreateCard: !!hostCreateCard, playerJoinCard: !!playerJoinCard
+});
+
+
+// === ROLE ENTRY FUNCTIONS (global) ===
 function enterHost(){
   document.body.classList.add('is-host');
-  document.getElementById('frontDoor')?.classList.add('hide');
-  document.getElementById('landing')?.classList.add('hide');
+  frontDoor?.classList.add('hide');
+  landing?.classList.add('hide');
   document.getElementById('hostUI')?.classList.remove('hide');
   document.getElementById('playerUI')?.classList.add('hide');
+
   roomCodeHost.textContent = state.room;
   wireRoomListeners();
   listenForAutoScore();
@@ -494,57 +529,15 @@ function enterHost(){
 
 function enterPlayer(){
   document.body.classList.remove('is-host');
-  document.getElementById('frontDoor')?.classList.add('hide');
-  document.getElementById('landing')?.classList.add('hide');
+  frontDoor?.classList.add('hide');
+  landing?.classList.add('hide');
   document.getElementById('hostUI')?.classList.add('hide');    // 👈 keep host hidden for players
   document.getElementById('playerUI')?.classList.remove('hide');
+
   roomCodePlayer.textContent = state.room;
   meName.textContent = state.me?.name || '';
   wireRoomListeners();
 }
-
-
-  // Wire buttons
-  bigPlay?.addEventListener('click', showLandingForPlayer);
-  hostShortcut?.addEventListener('click', showLandingForHost);
-
-  // Optional URL shortcuts: ?mode=host or ?mode=play
-  const params = new URLSearchParams(location.search);
-  const mode = params.get('mode');
-  if (mode === 'host') showLandingForHost();
-  else if (mode === 'play') showLandingForPlayer();
-
-  console.log('[frontdoor wired]', {
-    frontDoor: !!frontDoor, bigPlay: !!bigPlay, hostShortcut: !!hostShortcut,
-    landing: !!landing, hostCreateCard: !!hostCreateCard, playerJoinCard: !!playerJoinCard
-  });
-})();
-
-
-
-function showPlayerJoin(){
-  // Show landing with only player card visible
-  frontDoor?.classList.add('hide');
-  landing?.classList.remove('hide');
-  hostCreateCard?.classList.add('hide');
-  playerJoinCard?.classList.remove('hide');
-  // scroll into view nicety
-  landing?.scrollIntoView({behavior:'smooth', block:'start'});
-}
-
-function showHostCreate(){
-  // Show landing with only host card visible
-  frontDoor?.classList.add('hide');
-  landing?.classList.remove('hide');
-  playerJoinCard?.classList.add('hide');
-  hostCreateCard?.classList.remove('hide');
-  landing?.scrollIntoView({behavior:'smooth', block:'start'});
-}
-
-const params = new URLSearchParams(location.search);
-const mode = params.get('mode');
-if (mode === 'host') showHostCreate();
-else if (mode === 'play') showPlayerJoin();
 
     
 // Guards
