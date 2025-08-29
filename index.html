@@ -75,62 +75,52 @@
 body.is-host #hostUI{display:block;}
 body.is-host #playerUI{display:none;}
 
-/* ===== Front door / hero ===== */
-#frontDoor{
-  position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index: 1000; min-height:80vh; border-radius:16px; overflow:hidden;
-  border:1px solid var(--edge); box-shadow:0 20px 60px rgba(0,0,0,.45);
-  background: url('assets/background.png') center/contain no-repeat;
-  background-color: #0b0f1a;
-}
-#frontDoor .overlay{
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  padding:24px;
-}
-#bigPlay{
-  font-size:clamp(22px,3vw,28px); padding:18px 32px; border-radius:999px;
-  background:linear-gradient(180deg,#3aa7ff,#2263a2); border:1px solid #1f4680;
-  box-shadow:0 10px 40px rgba(0,0,0,.45); cursor:pointer;
-}
-#hostShortcut{
-  position:absolute; left:16px; bottom:16px; padding:8px 12px; border-radius:10px;
-  background:linear-gradient(180deg,#ffd36a,#c49e2e); color:#1a1400; border:1px solid #b58a18;
-  font-weight:700; cursor:pointer;
-}
+
     
   </style>
 </head>
 <body>
   <div class="shell">
     <h1>🧠 The 1% Club — Multiplayer</h1>
-    <!-- Front door / hero -->
-<div id="frontDoor" class="card">
-  <div class="overlay">
-    <button id="bigPlay">▶ Play</button>
-  </div>
-  <button id="hostShortcut">Host</button>
-</div>
-    <div id="landing" class="card hide">
-  <div id="hostLanding" class="grid g2" style="margin-top:8px;">
-
-    <!-- Host create card -->
-    <div class="card" id="hostCreateCard">
-      <h2>Host: create a room</h2>
-      <div class="grid g2">
-        <div>
-          <label>Room code (optional)</label>
-          <input id="hostRoomCode" maxlength="6" placeholder="e.g. 7H2K9Q" />
+    <div id="landing" class="card">
+      <div id="hostLanding" class="grid g2" style="margin-top:8px;">
+        <div class="card">
+          <h2>Host: create a room</h2>
+          <div class="grid g2">
+            <div>
+              <label>Room code (optional)</label>
+              <input id="hostRoomCode" maxlength="6" placeholder="e.g. 7H2K9Q" />
+            </div>
+            <div>
+              <label>Player limit</label>
+              <input id="playerLimit" type="number" min="2" max="80" value="80" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="createRoomBtn" class="btn-acc">Create room</button>
+            <span class="hint">You’ll join as host (not a contestant).</span>
+          </div>
         </div>
-        <div>
-          <label>Player limit</label>
-          <input id="playerLimit" type="number" min="2" max="80" value="80" />
+        <div class="card">
+          <h2>Players: join a room</h2>
+          <div class="grid g2">
+            <div>
+              <label>Room code</label>
+              <input id="joinCode" maxlength="6" placeholder="Enter code" />
+            </div>
+            <div>
+              <label>Your display name</label>
+              <input id="displayName" maxlength="24" placeholder="e.g. Alex" />
+            </div>
+          </div>
+          <div class="row" style="margin-top:10px">
+            <button id="joinBtn" class="btn-ok">Join game</button>
+            <span class="hint">Up to 80 players. Eliminated on wrong answer.</span>
+          </div>
         </div>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <button id="createRoomBtn" class="btn-acc">Create room</button>
-        <span class="hint">You’ll join as host (not a contestant).</span>
       </div>
     </div>
-    
+
     <div id="hostUI" class="card hide">
       <div class="row">
         <div class="pill">Room: <span id="roomCodeHost" class="mono"></span></div>
@@ -328,22 +318,6 @@ body.is-host #playerUI{display:none;}
 
     const els = (q)=>document.querySelector(q);
     const $$ = (q)=>Array.from(document.querySelectorAll(q));
-    
-    // --- BG image probe (helps debug path issues) ---
-(function(){
-  const testSrc = './assets/background.png';      // change if your path/file differs
-  const img = new Image();
-  img.onload = () => console.log('[bg] Loaded OK:', testSrc, img.width + 'x' + img.height);
-  img.onerror = () => {
-    console.warn('[bg] FAILED to load:', testSrc);
-    const warn = document.createElement('div');
-    warn.textContent = 'Background image failed to load: ' + testSrc;
-    warn.style.cssText = 'position:fixed;left:10px;bottom:10px;padding:8px 10px;border-radius:8px;background:#b13a3a;color:#fff;font:12px/1.2 ui-sans-serif;z-index:10001';
-    document.body.appendChild(warn);
-  };
-  img.src = testSrc;
-})();
-
 
     const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
@@ -359,52 +333,85 @@ body.is-host #playerUI{display:none;}
       stagedIndex: undefined
     };
 
-// Optional URL shortcuts: ?mode=host or ?mode=play
-const params = new URLSearchParams(location.search);
-const mode = params.get('mode');
-if (mode === 'host') showLandingForHost();
-else if (mode === 'play') showLandingForPlayer();
+    // UI elements
+    const landing = els('#landing');
+    const hostRoomCode = els('#hostRoomCode');
+    const playerLimitEl = els('#playerLimit');
+    const createRoomBtn = els('#createRoomBtn');
+    const joinCode = els('#joinCode');
+    const displayName = els('#displayName');
+    const joinBtn = els('#joinBtn');
 
-// Debug log
-console.log('[frontdoor wired]', {
-  frontDoor: !!frontDoor, bigPlay: !!bigPlay, hostShortcut: !!hostShortcut,
-  landing: !!landing, hostCreateCard: !!hostCreateCard, playerJoinCard: !!playerJoinCard
-});
+    const hostUI = els('#hostUI');
+    const roomCodeHost = els('#roomCodeHost');
+    const aliveCount = els('#aliveCount');
+    const qNumber = els('#qNumber');
+    const copyInvite = els('#copyInvite');
+    const playersList = els('#playersList');
+    const phaseTxt = els('#phaseTxt');
+    const deadlineTxt = els('#deadlineTxt');
+    const livePrompt = els('#livePrompt');
+    const liveChoices = els('#liveChoices');
+    const hostResults = els('#hostResults');
 
+    const qPrompt = els('#qPrompt');
+    const opt0 = els('#opt0');
+    const opt1 = els('#opt1');
+    const opt2 = els('#opt2');
+    const opt3 = els('#opt3');
+    const correctIndex = els('#correctIndex');
+    const answerWindow = els('#answerWindow');
+    const stageHiddenBtn = els('#stageHiddenBtn');
+    const revealBtn = els('#revealBtn');
+    const lockBtn = els('#lockBtn');
+    const scoreBtn = els('#scoreBtn');
+    const nextBtn = els('#nextBtn');
 
-// === ROLE ENTRY FUNCTIONS (global) ===
-function enterHost(){
-  document.body.classList.add('is-host');
-  frontDoor?.classList.add('hide');
-  landing?.classList.add('hide');
-  document.getElementById('hostUI')?.classList.remove('hide');
-  document.getElementById('playerUI')?.classList.add('hide');
+    const playerUI = els('#playerUI');
+    const roomCodePlayer = els('#roomCodePlayer');
+    const meName = els('#meName');
+    const statusTxt = els('#statusTxt');
+    const timeLeft = els('#timeLeft');
+    const pPrompt = els('#pPrompt');
+    const answerBtns = els('#answerBtns');
+    const resultsPlayer = els('#resultsPlayer');
+    const qArea = els('#qArea');
+    const msg = els('#msg');
+    const eliminated = els('#eliminated');
+    const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
-  roomCodeHost.textContent = state.room;
-  wireRoomListeners();
-  listenForAutoScore();
-  syncLadderToProgress();
-}
+// Modal elements (checkpoint)
+const checkpointModal = document.getElementById('checkpointModal');
+const cpAliveList = document.getElementById('cpAliveList');
+const cpOutList = document.getElementById('cpOutList');
+const closeCheckpointBtn = document.getElementById('closeCheckpointBtn');
 
-function enterPlayer(){
-  document.body.classList.remove('is-host');
-  frontDoor?.classList.add('hide');
-  landing?.classList.add('hide');
-  document.getElementById('hostUI')?.classList.add('hide');    // 👈 keep host hidden for players
-  document.getElementById('playerUI')?.classList.remove('hide');
+// Final modal elements
+const finalModal = document.getElementById('finalModal');
+const closeFinalBtn = document.getElementById('closeFinalBtn');
+const finalTitle = document.getElementById('finalTitle');
+const finalLeftHdr = document.getElementById('finalLeftHdr');
+const finalRightHdr = document.getElementById('finalRightHdr');
+const finalLeftList = document.getElementById('finalLeftList');
+const finalRightList = document.getElementById('finalRightList');
+const finalSub = document.getElementById('finalSub');
 
-  roomCodePlayer.textContent = state.room;
-  meName.textContent = state.me?.name || '';
-  wireRoomListeners();
-}
-
-    
 // Guards
 let shownCheckpointForQid = null;
 
 if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
 if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
 
+    
+    // Question bank elements
+    const bankText = els('#bankText');
+    const importBankBtn = els('#importBankBtn');
+    const stageNextBtn = els('#stageNextBtn');
+    const bankCount = els('#bankCount');
+    const bankNext = els('#bankNext');
+    const percentTxt = els('#percentTxt');
+    const answeredCountEl = els('#answeredCount');
+    const lockedCountEl   = els('#lockedCount');
     // --- Live caches for answer/lock counters (not in `state`)
     let latestPlayers = {};          // updated by the /players listener
     let answersUnsubForQ = null;     // unsubscribe fns for the active qid
@@ -571,6 +578,25 @@ if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.clas
       state.room = code; state.host = false; state.me = {name};
       enterPlayer();
     });
+
+    function enterHost(){
+      document.body.classList.add('is-host');
+      landing.classList.add('hide');
+      hostUI.classList.remove('hide');
+      roomCodeHost.textContent = state.room;
+      wireRoomListeners();
+      listenForAutoScore();        // auto-score watcher
+      syncLadderToProgress(); // keep ladder in sync from the start
+    }
+    function enterPlayer(){
+      document.body.classList.remove('is-host');
+      landing.classList.add('hide');
+      hostUI.classList.remove('hide');
+      playerUI.classList.remove('hide');
+      roomCodePlayer.textContent = state.room;
+      meName.textContent = state.me?.name || '';
+      wireRoomListeners();
+    }
 
     async function ensureArmedQuestion(db, roomCode){
       const metaRef = ref(db, `rooms/${roomCode}/meta`);
@@ -1063,7 +1089,6 @@ function attachAnswerLockCounters(cur) {
         console.error(err);
       }
     }
-
 
     async function lockMyAnswer(){
       const code = state.room;
