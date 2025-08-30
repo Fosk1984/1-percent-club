@@ -7,30 +7,21 @@
   <meta name="description" content="Host-controlled 1% Club style quiz with up to 80 players. Built for GitHub Pages + Firebase Realtime Database.">
   <link rel="icon" href="data:,"><!-- silence favicon 404 on GitHub Pages -->
   <style>
-    :root{
-      --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf; --edge:#22315c;
-      --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b;
-    }
+    :root{ --bg:#0b0f1a; --card:#12172a; --ink:#eaf0ff; --muted:#9aa4bf; --edge:#22315c; --acc:#6ac2ff; --acc2:#ffd36a; --ok:#33d17a; --bad:#ff6b6b; }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      color:var(--ink); background:radial-gradient(1200px 800px at 15% -10%, #182449 0%, #0f1730 40%, var(--bg) 100%);
-    }
+    body{margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color:var(--ink); background:radial-gradient(1200px 800px at 15% -10%, #182449 0%, #0f1730 40%, var(--bg) 100%);}
     .shell{max-width:1100px; margin:0 auto; padding:24px}
     h1{margin:0 0 12px; font-size:clamp(22px,3.2vw,36px)}
     h2{margin:18px 0 8px; font-size:clamp(18px,2.2vw,24px)}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.08)); border:1px solid var(--edge);
-      box-shadow:0 10px 30px rgba(0,0,0,.35); border-radius:16px; padding:16px; margin:12px 0}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.08)); border:1px solid var(--edge); box-shadow:0 10px 30px rgba(0,0,0,.35); border-radius:16px; padding:16px; margin:12px 0}
     .grid{display:grid; gap:12px}
     .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
-    .g3{grid-template-columns:repeat(3,minmax(0,1fr))}
     .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
     label{font-size:14px; color:var(--muted)}
-    input, textarea, select{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--edge);
-      background:#0f1530; color:var(--ink)}
+    input, textarea, select{width:100%; padding:10px 12px; border-radius:12px; border:1px solid var(--edge); background:#0f1530; color:var(--ink)}
     textarea{min-height:100px; resize:vertical}
-    button{cursor:pointer; border:1px solid var(--edge); background:linear-gradient(180deg,#1a254d,#121a38);
-      color:var(--ink); padding:10px 14px; border-radius:12px; font-weight:600; box-shadow:0 6px 16px rgba(0,0,0,.35)}
+    button{cursor:pointer; border:1px solid var(--edge); background:linear-gradient(180deg,#1a254d,#121a38); color:var(--ink); padding:10px 14px; border-radius:12px; font-weight:600; box-shadow:0 6px 16px rgba(0,0,0,.35)}
     button[disabled]{opacity:.5; cursor:not-allowed}
     .btn-acc{background:linear-gradient(180deg,#3aa7ff,#2263a2)}
     .btn-acc2{background:linear-gradient(180deg,#ffd36a,#c49e2e); color:#1a1400}
@@ -38,12 +29,10 @@
     .btn-bad{background:linear-gradient(180deg,#ff6b6b,#b13a3a)}
     .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
     .hint{color:var(--muted); font-size:13px}
-    .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
-      background:#0d1430; border:1px solid var(--edge); font-size:13px}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:#0d1430; border:1px solid var(--edge); font-size:13px}
     .timer{font-variant-numeric:tabular-nums; font-size:22px}
     .answers{display:grid; gap:10px; grid-template-columns:1fr}
-    .answerBtn{padding:16px; text-align:left; border-radius:14px; border:1px solid var(--edge); background:#101a3a;
-      font-size:16px}
+    .answerBtn{padding:16px; text-align:left; border-radius:14px; border:1px solid var(--edge); background:#101a3a; font-size:16px}
     .answerBtn.selected{outline:2px solid var(--acc)}
     .answerBtn.correct{outline:2px solid var(--ok)}
     .answerBtn.wrong{outline:2px solid var(--bad)}
@@ -55,13 +44,11 @@
     .big{font-size:clamp(28px,4vw,44px); font-weight:700}
     .hide{display:none !important}
 
-    /* ===== Percent Ladder (scoped) ===== */
-    .percent-ladder{--card:#12172a;--ink:#eaf0ff;--muted:#9aa4bf;--acc:#6ac2ff;--ok:#33d17a;--chk:#ffd36a;
-      display:flex;flex-direction:column;gap:.35rem;background:var(--card);padding:.75rem;border-radius:.75rem;border:1px solid #22305f;}
+    /* Percent Ladder */
+    .percent-ladder{--card:#12172a;--ink:#eaf0ff;--muted:#9aa4bf;--acc:#6ac2ff;--ok:#33d17a;--chk:#ffd36a; display:flex;flex-direction:column;gap:.35rem;background:var(--card);padding:.75rem;border-radius:.75rem;border:1px solid #22305f;}
     .percent-ladder .hdr{color:var(--muted);font:600 12px/1.2 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;letter-spacing:.04em;text-transform:uppercase;margin-bottom:.25rem}
     .pl-steps{display:flex;flex-direction:column-reverse;gap:.25rem}
-    .pl-step{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:.5rem;border:1px solid #24336a;
-      color:var(--ink);background:linear-gradient(180deg,#151c36,#12172a);cursor:pointer;position:relative;user-select:none;outline:none}
+    .pl-step{display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;border-radius:.5rem;border:1px solid #24336a; color:var(--ink);background:linear-gradient(180deg,#151c36,#12172a);cursor:pointer;position:relative;user-select:none;outline:none}
     .pl-step[data-cleared="true"]{background:linear-gradient(180deg,#122a1c,#0f1f18);border-color:#1f5137}
     .pl-step[data-cleared="true"] .tag{color:var(--ok)}
     .pl-step[data-current="true"]{box-shadow:0 0 0 2px var(--acc) inset, 0 8px 30px rgba(106,194,255,.25)}
@@ -69,7 +56,7 @@
     .pct{font:600 14px/1 ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
     .tag{margin-left:auto;font:500 11px/1 ui-sans-serif,system-ui;letter-spacing:.03em;color:var(--muted)}
 
-    /* Role guard: only show hostUI when body.has .is-host; only show playerUI otherwise */
+    /* Role guard */
     #hostUI{display:none;}
     #playerUI{display:block;}
     body.is-host #hostUI{display:block;}
@@ -122,7 +109,7 @@
       <div class="row">
         <div class="pill">Room: <span id="roomCodeHost" class="mono"></span></div>
         <div class="pill">Players alive: <span id="aliveCount">0</span></div>
-        <div class="pill">Question #<span id="qNumber">0</span></div>
+        <div class="pill">Question #<span id="qNumber">—</span></div>
         <button id="copyInvite" class="">Copy invite</button>
       </div>
 
@@ -168,7 +155,6 @@
       </div>
 
       <div class="grid g2">
-        <!-- Live question (fixed nesting) -->
         <div class="card">
           <h2>Live question</h2>
           <div class="row">
@@ -183,7 +169,6 @@
           <div id="hostResults" style="margin-top:10px"></div>
         </div>
 
-        <!-- Percent Ladder panel -->
         <div class="card">
           <h2>Percent Ladder</h2>
           <div id="ladder" class="percent-ladder" role="group" aria-label="Percent ladder">
@@ -230,7 +215,6 @@
       </div>
       <div id="eliminated" class="hide center" style="height:160px"><div class="big">❌ You’ve been eliminated</div></div>
 
-      <!-- Player roster -->
       <div class="card" style="margin-top:10px">
         <h2>Players</h2>
         <div id="playersListPlayer" class="list"></div>
@@ -238,11 +222,8 @@
     </div>
 
     <!-- Checkpoint Recap Modal -->
-    <div id="checkpointModal" class="hide"
-         style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
-      <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
-                   background:linear-gradient(180deg,#141a33,#0f1530);
-                    border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div id="checkpointModal" class="hide" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
+      <div style="width:min(900px,95vw); max-height:80vh; overflow:auto; background:linear-gradient(180deg,#141a33,#0f1530); border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
         <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
           <h2 style="margin:0">Checkpoint recap</h2>
           <button id="closeCheckpointBtn">Close</button>
@@ -262,12 +243,9 @@
     </div>
 
     <!-- Final Recap Modal -->
-    <div id="finalModal" class="hide"
-         style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
-      <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
-                  background:linear-gradient(180deg,#141a33,#0f1530);
-                  border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
-        <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
+    <div id="finalModal" class="hide" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
+      <div style="width:min(900px,95vw); max-height:80vh; overflow:auto; background:linear-gradient(180deg,#141a33,#0f1530); border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
+      <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
           <h2 id="finalTitle" style="margin:0">Game results</h2>
           <button id="closeFinalBtn">Close</button>
         </div>
@@ -470,9 +448,7 @@
       }
       setCheckpoints(indices){
         this.checkpoints = new Set(indices||[]);
-        [...this._stepsRoot.children].forEach(btn=>{
-          btn.dataset.checkpoint = this.checkpoints.has(+btn.dataset.index);
-        });
+        [...this._stepsRoot.children].forEach(btn=>{ btn.dataset.checkpoint = this.checkpoints.has(+btn.dataset.index); });
       }
     }
 
@@ -554,9 +530,7 @@
       const count = playersSnap.exists()? Object.values(playersSnap.val()).filter(p=>p.present && !p.eliminated).length : 0;
       if(count >= (meta.playerLimit||80)) return alert('Room is full');
 
-      await update(child(roomRef,`players/${state.uid}`), {
-        name, present:true, eliminated:false, joinedAt: Date.now() + serverOffset
-      });
+      await update(child(roomRef,`players/${state.uid}`), { name, present:true, eliminated:false, joinedAt: Date.now() + serverOffset });
       const meRef = child(roomRef,`players/${state.uid}/present`);
       onDisconnect(meRef).set(false);
 
@@ -576,7 +550,6 @@
     function enterPlayer(){
       document.body.classList.remove('is-host');
       landing.classList.add('hide');
-      // hostUI stays hidden by role guard; playerUI shows
       playerUI.classList.remove('hide');
       roomCodePlayer.textContent = state.room;
       meName.textContent = state.me?.name || '';
@@ -622,26 +595,13 @@
           ? state.stagedPercent
           : percentForAbsoluteIndex(absIndexForThisReveal);
 
-        const payload = {
-          phase: 'revealed',
-          qid,
-          prompt: qPrompt.value.trim(),
-          choices,
-          deadline,
-          percent: p
-        };
-
+        const payload = { phase:'revealed', qid, prompt:qPrompt.value.trim(), choices, deadline, percent:p };
         await set(currentRef, payload);
 
         // Advance ladder progress on Reveal
         state.progressAbs = Math.min(absIndexForThisReveal + 1, Math.max(0, state.bank.length));
         syncLadderToProgress();
-
-        console.log('[reveal] published', payload);
-      }catch(err){
-        console.error('[reveal] failed:', err);
-        alert('Reveal failed: ' + (err?.message || err));
-      }
+      }catch(err){ console.error('[reveal] failed:', err); alert('Reveal failed: ' + (err?.message || err)); }
     });
 
     // Lock (manual)
@@ -653,9 +613,7 @@
     async function getAliveUids(code){
       const playersSnap = await get(ref(db, `rooms/${code}/players`));
       const players = playersSnap.exists() ? playersSnap.val() : {};
-      return Object.entries(players)
-        .filter(([,p]) => p.present && !p.eliminated)
-        .map(([uid]) => uid);
+      return Object.entries(players).filter(([,p]) => p.present && !p.eliminated).map(([uid]) => uid);
     }
 
     // ===== Scoring (with end-of-game + final recap) =====
@@ -667,7 +625,6 @@
       if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
 
       const aliveBefore = await getAliveUids(code);
-
       const cIdx = parseInt(correctIndex.value, 10);
       await update(currentRef, { phase: 'result', correctIndex: cIdx });
 
@@ -679,7 +636,6 @@
       const answers = ansSnap.exists() ? ansSnap.val() : {};
       const players = playersSnap.exists() ? playersSnap.val() : {};
 
-      // Eliminate wrong / no-answer
       const updates = {};
       for (const [uid, p] of Object.entries(players)) {
         if (!(p.present && !p.eliminated)) continue;
@@ -689,7 +645,6 @@
       }
       if (Object.keys(updates).length) await update(ref(db), updates);
 
-      // Aggregate results
       const counts = [0, 0, 0, 0];
       let total = 0;
       for (const a of Object.values(answers)) {
@@ -697,12 +652,9 @@
       }
       await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
 
-      // Decide if game is over
       const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
       const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
-      const aliveAfter = Object.entries(playersAfter)
-        .filter(([,p]) => p.present && !p.eliminated)
-        .map(([uid]) => uid);
+      const aliveAfter = Object.entries(playersAfter).filter(([,p]) => p.present && !p.eliminated).map(([uid]) => uid);
 
       const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
 
@@ -724,7 +676,6 @@
       const code = state.room;
       const winnerNames = await namesFromUids(code, winners);
       const lastNames = await namesFromUids(code, lastRemaining);
-
       const hadWinners = winnerNames.length > 0;
 
       finalTitle.textContent = hadWinners ? 'Final results — Winner(s)' : 'Final results — No winners';
@@ -787,10 +738,14 @@
       }
     });
 
+    // Copy invite (guard for file:// during local dev)
     copyInvite.addEventListener('click', async ()=>{
-      const url = `${location.origin}${location.pathname}?room=${state.room}`;
-      await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
-      copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
+      const base = location.origin && location.origin !== 'null' ? location.origin : 'http://localhost';
+      const url = `${base}${location.pathname}?room=${state.room}`;
+      try{
+        await navigator.clipboard.writeText(`Join my 1% Club game: ${url} (code ${state.room})`);
+        copyInvite.textContent = 'Copied!'; setTimeout(()=>copyInvite.textContent='Copy invite',1500);
+      }catch{ alert(url); }
     });
 
     // ===== Auto-score when everyone locked =====
@@ -804,10 +759,7 @@
       const code = state.room;
       const qid  = cur.qid;
 
-      const aliveUids = Object.entries(latestPlayers)
-        .filter(([,p]) => p && p.present && !p.eliminated)
-        .map(([uid]) => uid);
-
+      const aliveUids = Object.entries(latestPlayers).filter(([,p]) => p && p.present && !p.eliminated).map(([uid]) => uid);
       const aliveTotal = aliveUids.length;
 
       const ansRef = ref(db, `rooms/${code}/answers/${qid}`);
@@ -846,13 +798,10 @@
         if (cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
           const locksRef = ref(db, `rooms/${code}/locks/${cur.qid}`);
           const playersRef = ref(db, `rooms/${code}/players`);
-
           const locksHandler = () => maybeAutoScore(cur);
           const playersHandler = () => maybeAutoScore(cur);
-
           const offLocks = onValue(locksRef, locksHandler);
           const offPlayers = onValue(playersRef, playersHandler);
-
           locksUnsub = () => { offLocks && offLocks(); offPlayers && offPlayers(); };
         }
 
@@ -875,9 +824,7 @@
       if (cur.phase !== 'revealed') return;
 
       const players = playersSnap.exists() ? playersSnap.val() : {};
-      const aliveUids = Object.entries(players)
-        .filter(([,p]) => p.present && !p.eliminated)
-        .map(([uid]) => uid);
+      const aliveUids = Object.entries(players).filter(([,p]) => p.present && !p.eliminated).map(([uid]) => uid);
 
       const locks = locksSnap.exists() ? locksSnap.val() : {};
       const lockCount = aliveUids.filter(uid => locks[uid] === true).length;
@@ -885,37 +832,29 @@
       if (aliveUids.length === 0 || lockCount >= aliveUids.length) {
         const phaseRef = ref(db, `rooms/${code}/current/phase`);
         const phaseNow = (await get(phaseRef)).val();
-        if (phaseNow === 'revealed') {
-          await scoreRound();
-        }
+        if (phaseNow === 'revealed') { await scoreRound(); }
       }
     }
 
     function wireRoomListeners(){
-      const code = state.room; 
-      if(!code) return;
+      const code = state.room; if(!code) return;
 
-      // META
-      onValue(ref(db, `rooms/${code}/meta`), (snap)=>{
-        const m = snap.val() || {};
-        qNumber.textContent = m.qIndex || 0;
-        if (Number.isInteger(m.qIndex)) {
-          state.progressAbs = m.qIndex;
-          syncLadderToProgress();
-        }
-      });
+      // META (do not drive UI from meta; it's just bookkeeping)
+      onValue(ref(db, `rooms/${code}/meta`), ()=>{/* noop */});
 
-      // CURRENT
+      // CURRENT (drives the UI + counters)
       onValue(ref(db, `rooms/${code}/current`), (snap)=>{
         state.current = snap.val() || {};
         const cur = state.current;
+
+        // Question number: show qid or — if 0
+        qNumber.textContent = (Number.isInteger(cur.qid) && cur.qid > 0) ? cur.qid : '—';
 
         attachAnswerLockCounters(cur);
 
         percentTxt.textContent = (typeof cur.percent === 'number') ? `${cur.percent}%` : '—';
         const pPercentEl = els('#pPercent');
-        if (pPercentEl) pPercentEl.textContent =
-          (typeof cur.percent === 'number') ? `This question: ${cur.percent}%` : '';
+        if (pPercentEl) pPercentEl.textContent = (typeof cur.percent === 'number') ? `This question: ${cur.percent}%` : '';
 
         phaseTxt.textContent = cur.phase || '—';
         deadlineTxt.textContent = cur.deadline ? new Date(cur.deadline).toLocaleTimeString() : '—';
@@ -931,7 +870,7 @@
         }
 
         if (cur.phase === 'result' && Number.isInteger(cur.qid)) {
-          state.progressAbs = cur.qid;
+          state.progressAbs = cur.qid; // qid is 1-based
           syncLadderToProgress();
           maybeShowCheckpointRecapIfNeeded(cur);
         }
@@ -978,10 +917,7 @@
         aliveCount.textContent = alive;
 
         if (state.host){
-          const sorted = entries.sort(([,a],[,b])=>{
-            const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2);
-            return rank(b) - rank(a);
-          });
+          const sorted = entries.sort(([,a],[,b])=>{ const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); return rank(b) - rank(a); });
           playersList.innerHTML = '';
           sorted.forEach(([uid,p])=>{
             const row = document.createElement('div'); row.className='row';
@@ -1000,10 +936,7 @@
 
           const listEl = document.getElementById('playersListPlayer');
           if (listEl){
-            const sorted = entries.sort(([,a],[,b])=>{
-              const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2);
-              return rank(b) - rank(a);
-            });
+            const sorted = entries.sort(([,a],[,b])=>{ const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); return rank(b) - rank(a); });
             listEl.innerHTML = '';
             sorted.forEach(([,p])=>{
               const row = document.createElement('div'); row.className='row';
@@ -1037,10 +970,7 @@
       const code = state.room; const cur = state.current;
       if (!cur || cur.phase!=='revealed') return;
       const nowMs = Date.now() + serverOffset;
-      if (typeof cur.deadline === 'number' && nowMs > cur.deadline) {
-        alert('Too late — time’s up!');
-        return;
-      }
+      if (typeof cur.deadline === 'number' && nowMs > cur.deadline) { alert('Too late — time’s up!'); return; }
       const uid = auth.currentUser?.uid || state.uid;
       if (!uid){ alert('Auth not ready yet. Please rejoin.'); return; }
       const ansRef = ref(db,`rooms/${code}/answers/${cur.qid}/${uid}`);
@@ -1048,26 +978,15 @@
         await set(ansRef, { index, at: nowMs });
         $$('.answerBtn').forEach((b,bi)=> { b.classList.toggle('selected', bi===index); b.disabled = true; });
         if (lockAnswerBtn) lockAnswerBtn.disabled = false;
-      }catch(err){
-        alert('Answer not accepted — timer likely expired.');
-        console.error(err);
-      }
+      }catch(err){ alert('Answer not accepted — timer likely expired.'); console.error(err); }
     }
 
     async function lockMyAnswer(){
-      const code = state.room;
-      const cur  = state.current;
-      const uid  = auth.currentUser?.uid || state.uid;
-
+      const code = state.room; const cur  = state.current; const uid  = auth.currentUser?.uid || state.uid;
       if (!cur || cur.phase !== 'revealed' || !uid) return;
       const lockRef = ref(db, `rooms/${code}/locks/${cur.qid}/${uid}`);
-      try{
-        await set(lockRef, true);
-        if (lockAnswerBtn) lockAnswerBtn.disabled = true;
-      }catch(e){
-        console.error('Lock failed', e);
-        alert('Could not lock answer (maybe time is up?).');
-      }
+      try{ await set(lockRef, true); if (lockAnswerBtn) lockAnswerBtn.disabled = true; }
+      catch(e){ console.error('Lock failed', e); alert('Could not lock answer (maybe time is up?).'); }
     }
     if (lockAnswerBtn) lockAnswerBtn.addEventListener('click', lockMyAnswer);
 
@@ -1095,9 +1014,7 @@
     async function maybeShowCheckpointRecapIfNeeded(curObj) {
       if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
       const within = ((curObj.qid - 1) % 10);
-      const isCheckpointIndex = ladder?.checkpoints?.has
-        ? ladder.checkpoints.has(within)
-        : [4,7].includes(within);
+      const isCheckpointIndex = ladder?.checkpoints?.has ? ladder.checkpoints.has(within) : [4,7].includes(within);
       if (!isCheckpointIndex) return;
       if (shownCheckpointForQid === curObj.qid) return;
       shownCheckpointForQid = curObj.qid;
@@ -1105,6 +1022,7 @@
       const code = state.room;
       const playersSnap = await get(ref(db, `rooms/${code}/players`));
       const players = playersSnap.exists() ? playersSnap.val() : {};
+
       const alive = [];
       const out = [];
       for (const p of Object.values(players)) {
@@ -1147,41 +1065,24 @@
     function parseBank(text){
       text = (text || '').trim();
       if (!text) return [];
-
-      // Try JSON first
-      try {
+      try { // JSON first
         const data = JSON.parse(text);
         const arr = Array.isArray(data) ? data : [data];
         return arr.map(normalizeItem).filter(Boolean);
-      } catch (_) {
-        // fall through to CSV
-      }
+      } catch (_) { /* fall through to CSV */ }
 
-      // CSV with quoted-field support
-      const lines = text
-        .split('\n')
-        .map(l => (l.endsWith('\r') ? l.slice(0, -1) : l))
-        .filter(Boolean);
-
+      const lines = text.split('\n').map(l => (l.endsWith('\r') ? l.slice(0, -1) : l)).filter(Boolean);
       if (lines.length < 2) return [];
 
       const splitCSV = (line) => {
-        const out = [];
-        let cur = '';
-        let inQuotes = false;
+        const out = []; let cur = ''; let inQuotes = false;
         for (let i = 0; i < line.length; i++) {
           const ch = line[i];
-          if (ch === '"') {
-            if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
-            else { inQuotes = !inQuotes; }
-          } else if (ch === ',' && !inQuotes) {
-            out.push(cur); cur = '';
-          } else {
-            cur += ch;
-          }
+          if (ch === '"') { if (inQuotes && line[i+1] === '"') { cur += '"'; i++; } else { inQuotes = !inQuotes; } }
+          else if (ch === ',' && !inQuotes) { out.push(cur); cur = ''; }
+          else { cur += ch; }
         }
-        out.push(cur);
-        return out.map(s => s.trim());
+        out.push(cur); return out.map(s => s.trim());
       };
 
       const header = splitCSV(lines[0]).map(h => h.trim().toLowerCase());
@@ -1229,9 +1130,7 @@
 
     importBankBtn.addEventListener('click', ()=>{
       const arr = parseBank(bankText.value);
-      state.bank = arr;
-      state.bankIndex = 0;
-      state.progressAbs = 0;
+      state.bank = arr; state.bankIndex = 0; state.progressAbs = 0;
       bankCount.textContent = String(arr.length);
       bankNext.textContent = String(arr.length ? 1 : 0);
       syncLadderToProgress();
@@ -1249,10 +1148,8 @@
       opt3.value = item.options[3] || '';
       correctIndex.value = String(item.correctIndex || 0);
       answerWindow.value = String(item.seconds || 30);
-
       state.stagedIndex = i;
       state.stagedPercent = Number.isFinite(item.percent) ? item.percent : undefined;
-
       state.bankIndex++;
       bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
     });
