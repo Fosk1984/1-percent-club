@@ -1132,7 +1132,7 @@
       const arr = parseBank(bankText.value);
       state.bank = arr; state.bankIndex = 0; state.progressAbs = 0;
       bankCount.textContent = String(arr.length);
-      bankNext.textContent = String(arr.length ? 1 : 0);
+      bankNext.textContent = String(arr.length ? 0 : 0);
       syncLadderToProgress();
       alert(arr.length ? `Loaded ${arr.length} questions` : 'No valid questions found');
     });
@@ -1151,7 +1151,7 @@
       state.stagedIndex = i;
       state.stagedPercent = Number.isFinite(item.percent) ? item.percent : undefined;
       state.bankIndex++;
-      bankNext.textContent = String(Math.min(state.bankIndex + 1, state.bank.length));
+      bankNext.textContent = String(state.bankIndex < state.bank.length ? state.bankIndex : state.bank.length);
     });
   </script>
 </body>
