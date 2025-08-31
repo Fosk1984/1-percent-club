@@ -423,6 +423,9 @@ if (closeOnePercentBtn) {
     let latestPlayers = {};
     let answersUnsubForQ = null;
     let locksUnsubForQ   = null;
+    // Host-only deadline watchdog
+    let deadlineTimerId = null;
+
 
     // Auto-score timer at deadline
 let deadlineAutoscoreTimer = null;
@@ -891,54 +894,89 @@ if (curNow.phase !== 'result') {
       if (lockedCountEl)   lockedCountEl.textContent   = `0/${aliveTotal}`;
     }
 
-    function listenForAutoScore(){
-      if (!state.host) return;
-      const code = state.room; if (!code) return;
+   function listenForAutoScore(){
+  if (!state.host) return;
+  const code = state.room; 
+  if (!code) return;
 
-      onValue(ref(db, `rooms/${code}/current`), (snap) => {
-        const cur = snap.val() || {};
-        if (locksUnsub) { locksUnsub(); locksUnsub = null; }
+  onValue(ref(db, `rooms/${code}/current`), (snap) => {
+    const cur = snap.val() || {};
 
-        if (cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
-          const locksRef = ref(db, `rooms/${code}/locks/${cur.qid}`);
-          const playersRef = ref(db, `rooms/${code}/players`);
-          const locksHandler = () => maybeAutoScore(cur);
-          const playersHandler = () => maybeAutoScore(cur);
-          const offLocks = onValue(locksRef, locksHandler);
-          const offPlayers = onValue(playersRef, playersHandler);
-          locksUnsub = () => { offLocks && offLocks(); offPlayers && offPlayers(); };
-        }
+    // Clean per-qid subs from previous question
+    if (locksUnsub) { locksUnsub(); locksUnsub = null; }
 
-        if (cur && cur.phase === 'result' && Number.isInteger(cur.qid)) {
-          state.progressAbs = cur.qid;
-          syncLadderToProgress();
-        }
-      });
+    // Clear any previous deadline timer if we leave 'revealed'
+    if (deadlineTimerId && cur.phase !== 'revealed') {
+      clearTimeout(deadlineTimerId);
+      deadlineTimerId = null;
     }
 
-    async function maybeAutoScore(curFromArg){
-      const code = state.room;
-      const [curSnap, playersSnap, locksSnap] = await Promise.all([
-        get(ref(db, `rooms/${code}/current`)),
-        get(ref(db, `rooms/${code}/players`)),
-        get(ref(db, `rooms/${code}/locks/${curFromArg.qid}`))
-      ]);
+    if (cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
+      const locksRef   = ref(db, `rooms/${code}/locks/${cur.qid}`);
+      const playersRef = ref(db, `rooms/${code}/players`);
 
-      const cur = curSnap.val() || {};
-      if (cur.phase !== 'revealed') return;
+      const locksHandler   = () => maybeAutoScore(cur);
+      const playersHandler = () => maybeAutoScore(cur);
 
-      const players = playersSnap.exists() ? playersSnap.val() : {};
-      const aliveUids = Object.entries(players).filter(([,p]) => p.present && !p.eliminated).map(([uid]) => uid);
+      const offLocks    = onValue(locksRef,   locksHandler);
+      const offPlayers  = onValue(playersRef, playersHandler);
+      locksUnsub = () => { offLocks && offLocks(); offPlayers && offPlayers(); };
 
-      const locks = locksSnap.exists() ? locksSnap.val() : {};
-      const lockCount = aliveUids.filter(uid => locks[uid] === true).length;
+      // --- Host-only deadline watchdog ---
+      if (state.host) {
+        if (deadlineTimerId) { clearTimeout(deadlineTimerId); deadlineTimerId = null; }
 
-      if (aliveUids.length === 0 || lockCount >= aliveUids.length) {
-        const phaseRef = ref(db, `rooms/${code}/current/phase`);
-        const phaseNow = (await get(phaseRef)).val();
-        if (phaseNow === 'revealed') { await scoreRound(); }
-      }
+        const now = Date.now() + serverOffset;
+        const msLeft = Math.max(0, (cur.deadline ?? now) - now);
+
+        deadlineTimerId = setTimeout(async () => {
+          try {
+            // Double-check phase to avoid double scoring
+            const phaseRef = ref(db, `rooms/${code}/current/phase`);
+            const phaseNow = (await get(phaseRef)).val();
+
+
+  async function maybeAutoScore(curFromArg){
+  const code = state.room;
+  const [curSnap, playersSnap, locksSnap] = await Promise.all([
+    get(ref(db, `rooms/${code}/current`)),
+    get(ref(db, `rooms/${code}/players`)),
+    get(ref(db, `rooms/${code}/locks/${curFromArg.qid}`))
+  ]);
+
+  const cur = curSnap.val() || {};
+  if (cur.phase !== 'revealed' && cur.phase !== 'locked') return;
+
+  const players = playersSnap.exists() ? playersSnap.val() : {};
+  const aliveUids = Object.entries(players)
+    .filter(([,p]) => p.present && !p.eliminated)
+    .map(([uid]) => uid);
+
+  const locks = locksSnap.exists() ? locksSnap.val() : {};
+  const lockCount = aliveUids.filter(uid => locks[uid] === true).length;
+
+  const now = Date.now() + serverOffset;
+  const deadlinePassed = typeof cur.deadline === 'number' && now >= cur.deadline;
+
+  // Trigger on either: everyone locked, no one alive (rare), or deadline passed
+  if (aliveUids.length === 0 || lockCount >= aliveUids.length || deadlinePassed) {
+    // CAS guard: only proceed once
+    const phaseRef = ref(db, `rooms/${code}/current/phase`);
+    const phaseNow = (await get(phaseRef)).val();
+
+    // If still revealed and deadline passed, lock first
+    if (phaseNow === 'revealed' && deadlinePassed) {
+      await update(ref(db, `rooms/${code}/current`), { phase: 'locked', deadline: now });
     }
+
+    // Score if we are in revealed/locked
+    const phaseAfter = (await get(phaseRef)).val();
+    if (phaseAfter === 'revealed' || phaseAfter === 'locked') {
+      await scoreRound();
+    }
+  }
+}
+
 
     function wireRoomListeners(){
       const code = state.room; if(!code) return;
