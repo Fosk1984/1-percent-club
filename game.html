@@ -700,10 +700,15 @@
       const wrongOrMissing = !a || a.index !== cIdx;
       if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
     }
-    if (Object.keys(updates).length){
-      try{ await update(ref(db), updates); }
-      catch(err){ console.error('Failed to eliminate players:', err); }
-    }
+   if (Object.keys(updates).length) {
+  try {
+    await update(ref(db), updates);
+  } catch (err) {
+    // Fallback visibility if your database rules block this write
+    console.error('[scoreRound] Failed to eliminate players:', err, { updates });
+    alert('Could not mark eliminations (blocked by database rules). Check Firebase Rules for write access to rooms/<code>/players/*/eliminated.');
+  }
+}
 
     // Aggregate results
     const counts = [0, 0, 0, 0];
