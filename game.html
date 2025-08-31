@@ -943,22 +943,32 @@
       const alive = entries.filter(([,p])=>p.present && !p.eliminated).length;
       aliveCount.textContent = alive;
 
-      if (state.host){
-        const sorted = entries.sort(([,a],[,b])=>{
-          const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); return rank(b) - rank(a);
-        });
-        playersList.innerHTML = '';
-        sorted.forEach(([uid,p])=>{
-          const row = document.createElement('div'); row.className='row';
-          const name = document.createElement('div'); name.textContent = p.name||'Player';
-          const tags = document.createElement('div'); tags.className='row';
-          tags.innerHTML = `
-            <span class="tag">${p.present? 'present':'offline'}</span>
-            <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>
-          `;
-          row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
-        });
-      } else {
+     if (state.host){
+  // Split into alive vs eliminated for clarity
+  const aliveEntries = entries.filter(([,p]) => p.present && !p.eliminated);
+  const outEntries   = entries.filter(([,p]) => p.eliminated); // whether present or not
+
+  const renderGroup = (title, arr, emoji) => {
+    const header = `<div class="row" style="margin:6px 0 4px; opacity:.85"><span class="tag">${emoji} ${title}</span></div>`;
+    const rows = arr.length
+      ? arr.map(([,p])=>{
+          const name = p.name || 'Player';
+          const presentTag = `<span class="tag">${p.present? 'present':'offline'}</span>`;
+          const elimTag    = `<span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>`;
+          return `<div class="row">
+                    <div>${name}</div>
+                    <div class="row">${presentTag}${elimTag}</div>
+                  </div>`;
+        }).join('')
+      : `<div class="muted small">—</div>`;
+    return header + rows;
+  };
+
+  playersList.innerHTML =
+    renderGroup('Alive', aliveEntries, '✅') +
+    renderGroup('Eliminated', outEntries, '❌');
+}
+ else {
         const me = players[state.uid]||{};
         const wasElim = state.meEliminated;
         state.meEliminated = !!(me && me.eliminated);
