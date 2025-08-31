@@ -385,6 +385,25 @@
     let answersUnsubForQ = null;
     let locksUnsubForQ   = null;
 
+    // Auto-score timer at deadline
+let deadlineAutoscoreTimer = null;
+function clearDeadlineAutoscore(){
+  if (deadlineAutoscoreTimer){ clearTimeout(deadlineAutoscoreTimer); deadlineAutoscoreTimer = null; }
+}
+function armDeadlineAutoscore(cur){
+  clearDeadlineAutoscore();
+  if (!cur || cur.phase !== 'revealed' || !Number.isInteger(cur.qid) || typeof cur.deadline !== 'number') return;
+  const now = Date.now() + serverOffset;
+  const delay = Math.max(0, cur.deadline - now) + 50; // small cushion
+  const code = state.room;
+  deadlineAutoscoreTimer = setTimeout(async ()=>{
+    // only score if still revealed
+    const phaseNow = (await get(ref(db, `rooms/${code}/current/phase`))).val();
+    if (phaseNow === 'revealed') { await scoreRound(); }
+  }, delay);
+}
+
+    
     // ===== Percent Ladder component =====
     class PercentLadder {
       constructor(selectorOrEl, {steps=[], currentIndex=0, cleared=[], checkpoints=[]}={}){
@@ -703,6 +722,14 @@
     scoreBtn.addEventListener('click', scoreRound);
 
     nextBtn.addEventListener('click', async () => {
+      // Don’t advance unless the current round is scored
+const curSnap = await get(ref(db, `rooms/${state.room}/current`));
+const curNow = curSnap.val() || {};
+if (curNow.phase !== 'result') {
+  alert('You must score this question before moving to the next one.');
+  return;
+}
+
       checkpointModal?.classList.add('hide');
       finalModal?.classList.add('hide');
       const code = state.room;
@@ -844,6 +871,13 @@
       onValue(ref(db, `rooms/${code}/current`), (snap)=>{
         state.current = snap.val() || {};
         const cur = state.current;
+        // Manage deadline auto-score
+if (cur.phase === 'revealed') {
+  armDeadlineAutoscore(cur);
+} else {
+  clearDeadlineAutoscore();
+}
+
 
         // Question number: show qid or — if 0
         qNumber.textContent = (Number.isInteger(cur.qid) && cur.qid > 0) ? cur.qid : '—';
@@ -982,6 +1016,12 @@
     async function lockMyAnswer(){
       const code = state.room; const cur  = state.current; const uid  = auth.currentUser?.uid || state.uid;
       if (!cur || cur.phase !== 'revealed' || !uid) return;
+      const nowMs = Date.now() + serverOffset;
+if (typeof cur.deadline === 'number' && nowMs > cur.deadline) {
+  alert('Too late — time’s up!');
+  return;
+}
+
       const lockRef = ref(db, `rooms/${code}/locks/${cur.qid}/${uid}`);
       try{ await set(lockRef, true); if (lockAnswerBtn) lockAnswerBtn.disabled = true; }
       catch(e){ console.error('Lock failed', e); alert('Could not lock answer (maybe time is up?).'); }
