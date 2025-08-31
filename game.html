@@ -61,6 +61,29 @@
     #playerUI{display:block;}
     body.is-host #hostUI{display:block;}
     body.is-host #playerUI{display:none;}
+
+/* Full-screen eliminated overlay (locks the UI) */
+.elim-overlay{
+  position:fixed; inset:0; z-index:99999;
+  background:rgba(5,8,20,.85);
+  backdrop-filter: blur(4px);
+  display:flex; align-items:center; justify-content:center;
+  pointer-events:auto; /* capture all clicks */
+}
+.elim-overlay.hide{ display:none; }
+.elim-box{
+  width:min(520px, 92vw);
+  background:linear-gradient(180deg,#151b36,#10162f);
+  border:1px solid var(--edge);
+  border-radius:18px; padding:20px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  text-align:center;
+}
+.elim-emoji{ font-size:48px; margin-bottom:8px }
+.elim-title{ font-size:clamp(22px,3vw,28px); font-weight:800; margin-bottom:6px }
+.elim-sub{ color:var(--muted) }
+
+    
   </style>
 </head>
 <body>
@@ -80,6 +103,15 @@
               <input id="playerLimit" type="number" min="2" max="80" value="80" />
             </div>
           </div>
+          
+          <!-- Eliminated full-screen lock overlay -->
+<div id="elimOverlay" class="elim-overlay hide" role="dialog" aria-live="assertive" aria-label="Eliminated">
+  <div class="elim-box">
+    <div class="elim-emoji">❌</div>
+    <div class="elim-title">You’ve been eliminated</div>
+    <div class="elim-sub">Sit back and watch the rest of the game.</div>
+  </div>
+</div>
           <div class="row" style="margin-top:10px">
             <button id="createRoomBtn" class="btn-acc">Create room</button>
             <span class="hint">You’ll join as host (not a contestant).</span>
