@@ -935,12 +935,16 @@
             const countsP = cur.stats && cur.stats.counts
               ? [cur.stats.counts[0]||0, cur.stats.counts[1]||0, cur.stats.counts[2]||0, cur.stats.counts[3]||0]
               : null;
-            if (cur.phase === 'result') {
-              renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
-              revealCorrect(cur);
-            } else {
-              resultsPlayer.innerHTML = '';
-            }
+            
+          if (cur.phase === 'result') {
+          renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
+          revealCorrect(cur);
+          // NEW: immediately tell this player if they’re out
+          checkAndShowMyElimination(cur);
+          } else {
+          resultsPlayer.innerHTML = '';
+          }
+
           } else {
             msg.classList.remove('hide');
             qArea.classList.add('hide');
@@ -1041,6 +1045,38 @@
         b.disabled = true;
       });
     }
+// Immediately tell *this* player if they were eliminated on this result
+async function checkAndShowMyElimination(cur){
+  try{
+    const code = state.room;
+    const uid  = auth.currentUser?.uid || state.uid;
+    if (!uid || !Number.isInteger(cur?.qid) || cur?.phase !== 'result') return;
+
+    // Read my recorded answer (may be missing if I timed out)
+    const myAnsSnap = await get(ref(db, `rooms/${code}/answers/${cur.qid}/${uid}`));
+    const myAns = myAnsSnap.exists() ? myAnsSnap.val() : null;
+
+    const gotItRight = myAns && Number.isInteger(myAns.index) && myAns.index === Number(cur.correctIndex);
+
+    if (!gotItRight){
+      // Show elimination UI immediately on the player’s screen
+      if (eliminated) eliminated.classList.remove('hide');
+      if (statusTxt)  statusTxt.textContent = 'eliminated';
+      if (msg){
+        msg.classList.remove('hide');
+        msg.textContent = '❌ You’ve been eliminated.';
+      }
+      // Hard-disable answering UI just in case
+      $$('.answerBtn').forEach(b => b.disabled = true);
+      if (lockAnswerBtn) lockAnswerBtn.disabled = true;
+
+      // Mark local flag so other UI bits reflect it even before players listener catches up
+      state.meEliminated = true;
+    }
+  }catch(e){
+    console.error('checkAndShowMyElimination failed', e);
+  }
+}
 
     function startTimer(deadline){
       stopTimer();
