@@ -316,17 +316,17 @@
   const auth = getAuth(app);
   const db = getDatabase(app);
 
-  // Server time offset for accurate deadlines
+  // Keep client aligned to server time for deadlines
   let serverOffset = 0;
   onValue(ref(db, '.info/serverTimeOffset'), (snap)=> { serverOffset = snap.val() || 0; });
 
   const els = (q)=>document.querySelector(q);
-  const $$  = (q)=>Array.from(document.querySelectorAll(q));
+  const $$ = (q)=>Array.from(document.querySelectorAll(q));
 
   const codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const genCode = (len=6)=>Array.from({length:len},()=>codeChars[Math.floor(Math.random()*codeChars.length)]).join('');
 
-  // progressAbs drives the ladder; bankIndex is the staging cursor
+  // progressAbs drives the ladder; bankIndex is just the staging cursor
   const state = {
     uid:null, room:null, host:false, me:null,
     current:null, timerInt:null,
@@ -334,9 +334,11 @@
     meEliminated:false,
     progressAbs:0,
     stagedPercent: undefined,
-    stagedIndex: undefined,
-    deadlineWatcher: null
+    stagedIndex: undefined
   };
+
+  // Host-only deadline watcher id
+  let deadlineWatchId = null;
 
   // UI elements
   const landing = els('#landing');
@@ -360,7 +362,10 @@
   const hostResults = els('#hostResults');
 
   const qPrompt = els('#qPrompt');
-  const opt0 = els('#opt0'); const opt1 = els('#opt1'); const opt2 = els('#opt2'); const opt3 = els('#opt3');
+  const opt0 = els('#opt0');
+  const opt1 = els('#opt1');
+  const opt2 = els('#opt2');
+  const opt3 = els('#opt3');
   const correctIndex = els('#correctIndex');
   const answerWindow = els('#answerWindow');
   const revealBtn = els('#revealBtn');
@@ -381,7 +386,7 @@
   const eliminated = els('#eliminated');
   const lockAnswerBtn = document.getElementById('lockAnswerBtn');
 
-  // Modals
+  // Modal elements (checkpoint/final)
   const checkpointModal = document.getElementById('checkpointModal');
   const cpAliveList = document.getElementById('cpAliveList');
   const cpOutList = document.getElementById('cpOutList');
@@ -396,10 +401,10 @@
   const finalSub = document.getElementById('finalSub');
 
   let shownCheckpointForQid = null;
-  closeCheckpointBtn?.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
-  closeFinalBtn?.addEventListener('click', ()=> finalModal?.classList.add('hide'));
+  if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
+  if (closeFinalBtn) closeFinalBtn.addEventListener('click', ()=> finalModal?.classList.add('hide'));
 
-  // Bank widgets
+  // Question bank elements
   const bankText = els('#bankText');
   const importBankBtn = els('#importBankBtn');
   const stageNextBtn = els('#stageNextBtn');
@@ -409,12 +414,12 @@
   const answeredCountEl = els('#answeredCount');
   const lockedCountEl   = els('#lockedCount');
 
-  // Live caches
+  // Live caches for answer/lock counters
   let latestPlayers = {};
   let answersUnsubForQ = null;
   let locksUnsubForQ   = null;
 
-  // ===== Percent Ladder =====
+  // ===== Percent Ladder component =====
   class PercentLadder {
     constructor(selectorOrEl, {steps=[], currentIndex=0, cleared=[], checkpoints=[]}={}){
       this.el = typeof selectorOrEl==='string' ? document.querySelector(selectorOrEl) : selectorOrEl;
@@ -423,11 +428,13 @@
       this.cleared = new Set(cleared||[]);
       this.checkpoints = new Set(checkpoints||[]);
       this._stepsRoot = this.el.querySelector('.pl-steps');
-      this.render(); this._attach();
+      this.render();
+      this._attach();
     }
     _attach(){
       this._stepsRoot.addEventListener('click', (e)=>{
-        const item = e.target.closest('.pl-step'); if(!item) return;
+        const item = e.target.closest('.pl-step');
+        if(!item) return;
         const idx = +item.dataset.index;
         this.setCurrent(idx);
         this.el.dispatchEvent(new CustomEvent('ladder-select',{detail:{index:idx, percent:this.steps[idx]}}));
@@ -438,14 +445,18 @@
       this._stepsRoot.innerHTML='';
       this.steps.forEach((pct, idx)=>{
         const step = document.createElement('button');
-        step.type='button'; step.className='pl-step';
+        step.type='button';
+        step.className='pl-step';
         step.dataset.index=idx;
         step.dataset.current = (idx===this.currentIndex);
         step.dataset.cleared = this.cleared.has(idx);
         step.dataset.checkpoint = this.checkpoints.has(idx);
         step.setAttribute('aria-pressed', idx===this.currentIndex ? 'true':'false');
-        step.innerHTML = `<span class="pct">${pct}%</span>
-                          <span class="tag">${idx===this.currentIndex?'Current':(this.cleared.has(idx)?'Cleared':'')}</span>`;
+        step.setAttribute('aria-label', `${pct}% step`);
+        step.innerHTML = `
+          <span class="pct">${pct}%</span>
+          <span class="tag">${idx===this.currentIndex?'Current':(this.cleared.has(idx)?'Cleared':'')}</span>
+        `;
         frag.appendChild(step);
       });
       this._stepsRoot.appendChild(frag);
@@ -477,10 +488,12 @@
 
   const ladder = new PercentLadder('#ladder', {
     steps: [90,80,70,60,50,40,30,20,10,1],
-    currentIndex: 0, cleared: [], checkpoints: [4,7]
+    currentIndex: 0,
+    cleared: [],
+    checkpoints: [4,7]
   });
 
-  const chunkStartByProgress = (abs)=> Math.floor(abs/10)*10;
+  function chunkStartByProgress(abs){ return Math.floor(abs/10)*10; }
   function buildStepsForProgressChunk(start){
     const def = [90,80,70,60,50,40,30,20,10,1];
     const steps = def.slice();
@@ -500,9 +513,9 @@
   function syncLadderToProgress(){
     const start = chunkStartByProgress(state.progressAbs);
     const steps = buildStepsForProgressChunk(start);
-    const within = state.progressAbs % 10;
+    const within = state.progressAbs % 10;           // 0 means no step cleared yet
     ladder.setSteps(steps);
-    ladder.setCleared(within > 0 ? Array.from({length: within}, (_,i)=>i) : []);
+    ladder.setCleared(Array.from({length: within}, (_,i)=>i)); // clears 0..within-1
     ladder.setCurrent(within);
   }
   document.getElementById('ladder').addEventListener('ladder-select', (e)=>{
@@ -512,7 +525,7 @@
     syncLadderToProgress();
   });
 
-  // ===== Auth =====
+  // ===== Auth flow =====
   createRoomBtn.disabled = true; joinBtn.disabled = true;
   onAuthStateChanged(auth, async (user)=>{
     if(user){ state.uid = user.uid; createRoomBtn.disabled = false; joinBtn.disabled = false; return; }
@@ -525,10 +538,15 @@
     const limit = Math.min(80, Math.max(2, parseInt(playerLimitEl.value||"80",10)));
     const roomRef = ref(db, `rooms/${code}`);
     await set(child(roomRef,'meta'), {
-      hostUid: state.uid, allowJoin: true, playerLimit: limit, qIndex: 0, createdAt: Date.now() + serverOffset
+      hostUid: state.uid,
+      allowJoin: true,
+      playerLimit: limit,
+      qIndex: 0,
+      createdAt: Date.now() + serverOffset
     });
     await set(child(roomRef,'current'), { phase:'hidden', qid:0 });
-    state.room = code; state.host = true; enterHost();
+    state.room = code; state.host = true;
+    enterHost();
   });
 
   // Join room
@@ -547,9 +565,11 @@
     if(count >= (meta.playerLimit||80)) return alert('Room is full');
 
     await update(child(roomRef,`players/${state.uid}`), { name, present:true, eliminated:false, joinedAt: Date.now() + serverOffset });
-    const meRef = child(roomRef,`players/${state.uid}/present`); onDisconnect(meRef).set(false);
+    const meRef = child(roomRef,`players/${state.uid}/present`);
+    onDisconnect(meRef).set(false);
 
-    state.room = code; state.host = false; state.me = {name}; enterPlayer();
+    state.room = code; state.host = false; state.me = {name};
+    enterPlayer();
   });
 
   function enterHost(){
@@ -598,12 +618,21 @@
       const nowMs     = Date.now() + serverOffset;
       const deadline  = nowMs + secs*1000;
 
-      const absIndexForThisReveal = (typeof state.stagedIndex === 'number') ? state.stagedIndex : state.progressAbs;
-      const p = (typeof state.stagedPercent === 'number') ? state.stagedPercent : percentForAbsoluteIndex(absIndexForThisReveal);
+      let absIndexForThisReveal;
+      if (typeof state.stagedIndex === 'number') {
+        absIndexForThisReveal = state.stagedIndex;
+      } else {
+        absIndexForThisReveal = state.progressAbs;
+      }
 
-      await set(currentRef, { phase:'revealed', qid, prompt:qPrompt.value.trim(), choices, deadline, percent:p });
+      const p = (typeof state.stagedPercent === 'number')
+        ? state.stagedPercent
+        : percentForAbsoluteIndex(absIndexForThisReveal);
 
-      // Advance ladder *after* reveal so first step isn't pre-cleared
+      const payload = { phase:'revealed', qid, prompt:qPrompt.value.trim(), choices, deadline, percent:p };
+      await set(currentRef, payload);
+
+      // Advance ladder progress on Reveal
       state.progressAbs = Math.min(absIndexForThisReveal + 1, Math.max(0, state.bank.length));
       syncLadderToProgress();
     }catch(err){ console.error('[reveal] failed:', err); alert('Reveal failed: ' + (err?.message || err)); }
@@ -611,8 +640,10 @@
 
   // Lock (manual)
   lockBtn.addEventListener('click', async ()=>{
-    const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
-    await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
+    try{
+      const code = state.room; const currentRef = ref(db,`rooms/${code}/current`);
+      await update(currentRef, { phase:'locked', deadline: Date.now() + serverOffset });
+    }catch(e){ console.error('Lock failed', e); }
   });
 
   async function getAliveUids(code){
@@ -621,9 +652,23 @@
     return Object.entries(players).filter(([,p]) => p.present && !p.eliminated).map(([uid]) => uid);
   }
 
-  // ===== Scoring =====
+  // --- Host-identity helper ---
+  async function isHostForRoom(code){
+    try{
+      const snap = await get(ref(db, `rooms/${code}/meta`));
+      const meta = snap.exists() ? snap.val() : {};
+      return state.uid && meta.hostUid && state.uid === meta.hostUid;
+    }catch{
+      return false;
+    }
+  }
+
+  // ===== Scoring (with end-of-game + final recap) =====
   async function scoreRound(){
     const code = state.room;
+    // Host gate: only the host may score
+    if (!(await isHostForRoom(code))) return;
+
     const currentRef = ref(db, `rooms/${code}/current`);
     const curSnap = await get(currentRef);
     const cur = curSnap.val();
@@ -631,7 +676,13 @@
 
     const aliveBefore = await getAliveUids(code);
     const cIdx = parseInt(correctIndex.value, 10);
-    await update(currentRef, { phase: 'result', correctIndex: cIdx });
+
+    try{
+      await update(currentRef, { phase: 'result', correctIndex: cIdx });
+    }catch(err){
+      console.error('Failed to set result phase:', err);
+      return;
+    }
 
     const [ansSnap, playersSnap] = await Promise.all([
       get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
@@ -641,7 +692,7 @@
     const answers = ansSnap.exists() ? ansSnap.val() : {};
     const players = playersSnap.exists() ? playersSnap.val() : {};
 
-    // Eliminate wrong or missing answers
+    // Eliminate wrong / no-answer
     const updates = {};
     for (const [uid, p] of Object.entries(players)) {
       if (!(p.present && !p.eliminated)) continue;
@@ -649,19 +700,26 @@
       const wrongOrMissing = !a || a.index !== cIdx;
       if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
     }
-    if (Object.keys(updates).length) await update(ref(db), updates);
+    if (Object.keys(updates).length){
+      try{ await update(ref(db), updates); }
+      catch(err){ console.error('Failed to eliminate players:', err); }
+    }
 
     // Aggregate results
-    const counts = [0, 0, 0, 0]; let total = 0;
+    const counts = [0, 0, 0, 0];
+    let total = 0;
     for (const a of Object.values(answers)) {
       if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
     }
-    await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
+    try{
+      await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
+    }catch(err){ console.error('Failed to write stats:', err); }
 
-    // Game-over checks
+    // Decide if game is over
     const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
     const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
     const aliveAfter = Object.entries(playersAfter).filter(([,p]) => p.present && !p.eliminated).map(([uid]) => uid);
+
     const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
 
     if (aliveAfter.length === 0) {
@@ -718,8 +776,10 @@
     const meta = metaSnap.val() || {};
     const qid = (meta.qIndex || 0) + 1;
 
-    await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
-    await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null, stats: null });
+    try{
+      await update(ref(db, `rooms/${code}/meta`), { qIndex: qid });
+      await set(ref(db, `rooms/${code}/current`), { phase: 'hidden', qid, prompt: null, choices: null, stats: null });
+    }catch(e){ console.error('Failed to advance to next question:', e); }
 
     if (state.bank.length && state.bankIndex < state.bank.length) {
       const item = state.bank[state.bankIndex];
@@ -744,7 +804,7 @@
     }
   });
 
-  // Copy invite (safe on file:// too)
+  // Copy invite (guard for file:// during local dev)
   copyInvite.addEventListener('click', async ()=>{
     const base = location.origin && location.origin !== 'null' ? location.origin : 'http://localhost';
     const url = `${base}${location.pathname}?room=${state.room}`;
@@ -754,7 +814,7 @@
     }catch{ alert(url); }
   });
 
-  // ===== Auto-score when everyone locked OR time runs out =====
+  // ===== Auto-score when everyone locked =====
   let locksUnsub = null;
 
   function attachAnswerLockCounters(cur) {
@@ -764,6 +824,7 @@
 
     const code = state.room;
     const qid  = cur.qid;
+
     const aliveUids = Object.entries(latestPlayers).filter(([,p]) => p && p.present && !p.eliminated).map(([uid]) => uid);
     const aliveTotal = aliveUids.length;
 
@@ -771,14 +832,14 @@
     const offAns = onValue(ansRef, (snap) => {
       const answers = snap.exists() ? snap.val() : {};
       const answered = aliveUids.filter(uid => answers[uid] && Number.isInteger(answers[uid].index)).length;
-      answeredCountEl && (answeredCountEl.textContent = `${answered}/${aliveTotal}`);
+      if (answeredCountEl) answeredCountEl.textContent = `${answered}/${aliveTotal}`;
     });
 
     const locksRef = ref(db, `rooms/${code}/locks/${qid}`);
     const offLocks = onValue(locksRef, (snap) => {
       const locks = snap.exists() ? snap.val() : {};
       const locked = aliveUids.filter(uid => locks[uid] === true).length;
-      lockedCountEl && (lockedCountEl.textContent = `${locked}/${aliveTotal}`);
+      if (lockedCountEl) lockedCountEl.textContent = `${locked}/${aliveTotal}`;
       if (state.host) {
         const allLocked = locked >= aliveTotal && aliveTotal > 0;
         if (allLocked) scoreBtn?.classList.add('btn-ok'); else scoreBtn?.classList.remove('btn-ok');
@@ -788,8 +849,8 @@
     answersUnsubForQ = offAns;
     locksUnsubForQ   = offLocks;
 
-    answeredCountEl && (answeredCountEl.textContent = `0/${aliveTotal}`);
-    lockedCountEl   && (lockedCountEl.textContent   = `0/${aliveTotal}`);
+    if (answeredCountEl) answeredCountEl.textContent = `0/${aliveTotal}`;
+    if (lockedCountEl)   lockedCountEl.textContent   = `0/${aliveTotal}`;
   }
 
   function listenForAutoScore(){
@@ -798,10 +859,7 @@
 
     onValue(ref(db, `rooms/${code}/current`), (snap) => {
       const cur = snap.val() || {};
-
-      // cleanup old watchers
       if (locksUnsub) { locksUnsub(); locksUnsub = null; }
-      if (state.deadlineWatcher) { clearInterval(state.deadlineWatcher); state.deadlineWatcher = null; }
 
       if (cur.phase === 'revealed' && Number.isInteger(cur.qid)) {
         const locksRef = ref(db, `rooms/${code}/locks/${cur.qid}`);
@@ -811,17 +869,6 @@
         const offLocks = onValue(locksRef, locksHandler);
         const offPlayers = onValue(playersRef, playersHandler);
         locksUnsub = () => { offLocks && offLocks(); offPlayers && offPlayers(); };
-
-        // NEW: deadline watcher — host auto-scores when time is up
-        state.deadlineWatcher = setInterval(async ()=>{
-          const snapCur = await get(ref(db, `rooms/${code}/current`));
-          const now = Date.now() + serverOffset;
-          const c = snapCur.val() || {};
-          if (c.phase === 'revealed' && typeof c.deadline === 'number' && now >= c.deadline) {
-            clearInterval(state.deadlineWatcher); state.deadlineWatcher = null;
-            await scoreRound();
-          }
-        }, 250);
       }
 
       if (cur && cur.phase === 'result' && Number.isInteger(cur.qid)) {
@@ -851,23 +898,72 @@
     if (aliveUids.length === 0 || lockCount >= aliveUids.length) {
       const phaseRef = ref(db, `rooms/${code}/current/phase`);
       const phaseNow = (await get(phaseRef)).val();
-      if (phaseNow === 'revealed') { await scoreRound(); }
+
+      // Only the host can score; also ensure we are still in 'revealed'
+      if (phaseNow === 'revealed' && await isHostForRoom(code)) {
+        try {
+          await scoreRound();
+        } catch (err) {
+          console.error('[auto-score] scoreRound failed:', err);
+        }
+      }
     }
   }
 
-  // === Rendering & interaction ===
+  // ==== Deadline watcher (host only) ====
+  function stopDeadlineWatch(){
+    if (deadlineWatchId){
+      clearInterval(deadlineWatchId);
+      deadlineWatchId = null;
+    }
+  }
+  function startDeadlineWatch(cur){
+    stopDeadlineWatch();
+    if (!state.host) return;
+    if (!cur || cur.phase !== 'revealed' || typeof cur.deadline !== 'number') return;
+
+    const code = state.room;
+    deadlineWatchId = setInterval(async ()=>{
+      try{
+        const now = Date.now() + serverOffset;
+        if (now < cur.deadline) return;
+
+        // Time up — stop ticking
+        stopDeadlineWatch();
+
+        const phaseSnap = await get(ref(db, `rooms/${code}/current/phase`));
+        const phaseNow = phaseSnap.val();
+
+        if (phaseNow === 'revealed' && await isHostForRoom(code)) {
+          try { await scoreRound(); }
+          catch (err) { console.error('[deadline] scoreRound failed:', err); }
+        }
+      }catch(e){
+        console.error('[deadline] watcher error:', e);
+        stopDeadlineWatch();
+      }
+    }, 250);
+  }
+
   function wireRoomListeners(){
     const code = state.room; if(!code) return;
 
-    // META is bookkeeping only
-    onValue(ref(db, `rooms/${code}/meta`), ()=>{});
+    // META (do not drive UI from meta; it's just bookkeeping)
+    onValue(ref(db, `rooms/${code}/meta`), ()=>{/* noop */});
 
-    // CURRENT drives UI
+    // CURRENT (drives the UI + counters)
     onValue(ref(db, `rooms/${code}/current`), (snap)=>{
       state.current = snap.val() || {};
       const cur = state.current;
 
-      // Question number from qid (not meta)
+      // Host: auto-score exactly at deadline
+      if (cur.phase === 'revealed') {
+        startDeadlineWatch(cur);
+      } else {
+        stopDeadlineWatch();
+      }
+
+      // Question number: show qid or — if 0
       qNumber.textContent = (Number.isInteger(cur.qid) && cur.qid > 0) ? cur.qid : '—';
 
       attachAnswerLockCounters(cur);
@@ -901,8 +997,7 @@
           : null;
         renderResults(hostResults, counts, cur.stats?.total||0, cur.correctIndex);
       } else {
-        statusTxt.textContent = state.meEliminated ? 'eliminated' : (cur.phase || '—');
-
+        statusTxt.textContent = state.meEliminated ? 'spectating' : (cur.phase || '—');
         if (cur.phase === 'revealed' || cur.phase === 'locked' || cur.phase === 'result'){
           msg.classList.add('hide');
           qArea.classList.remove('hide');
@@ -913,11 +1008,9 @@
           const countsP = cur.stats && cur.stats.counts
             ? [cur.stats.counts[0]||0, cur.stats.counts[1]||0, cur.stats.counts[2]||0, cur.stats.counts[3]||0]
             : null;
-
           if (cur.phase === 'result') {
             renderResults(resultsPlayer, countsP, cur.stats?.total||0, cur.correctIndex);
             revealCorrect(cur);
-            checkAndShowMyElimination(cur); // instant lock & message if wrong/missed
           } else {
             resultsPlayer.innerHTML = '';
           }
@@ -926,15 +1019,11 @@
           qArea.classList.add('hide');
           resultsPlayer.innerHTML = '';
         }
-
-        // If eliminated, hard-lock the UI regardless of phase
-        if (state.meEliminated) lockEliminatedUI();
-
         if (lockAnswerBtn) lockAnswerBtn.disabled = (cur.phase !== 'revealed');
       }
     });
 
-    // PLAYERS (for roster + client-side elim lock)
+    // PLAYERS
     onValue(ref(db, `rooms/${code}/players`), (snap)=>{
       const players = snap.val() || {};
       latestPlayers = players;
@@ -943,46 +1032,27 @@
       const alive = entries.filter(([,p])=>p.present && !p.eliminated).length;
       aliveCount.textContent = alive;
 
-     if (state.host){
-  // Split into alive vs eliminated for clarity
-  const aliveEntries = entries.filter(([,p]) => p.present && !p.eliminated);
-  const outEntries   = entries.filter(([,p]) => p.eliminated); // whether present or not
-
-  const renderGroup = (title, arr, emoji) => {
-    const header = `<div class="row" style="margin:6px 0 4px; opacity:.85"><span class="tag">${emoji} ${title}</span></div>`;
-    const rows = arr.length
-      ? arr.map(([,p])=>{
-          const name = p.name || 'Player';
-          const presentTag = `<span class="tag">${p.present? 'present':'offline'}</span>`;
-          const elimTag    = `<span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>`;
-          return `<div class="row">
-                    <div>${name}</div>
-                    <div class="row">${presentTag}${elimTag}</div>
-                  </div>`;
-        }).join('')
-      : `<div class="muted small">—</div>`;
-    return header + rows;
-  };
-
-  playersList.innerHTML =
-    renderGroup('Alive', aliveEntries, '✅') +
-    renderGroup('Eliminated', outEntries, '❌');
-}
- else {
+      if (state.host){
+        const sorted = entries.sort(([,a],[,b])=>{ const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); return rank(b) - rank(a); });
+        playersList.innerHTML = '';
+        sorted.forEach(([uid,p])=>{
+          const row = document.createElement('div'); row.className='row';
+          const name = document.createElement('div'); name.textContent = p.name||'Player';
+          const tags = document.createElement('div'); tags.className='row';
+          tags.innerHTML = `
+            <span class="tag">${p.present? 'present':'offline'}</span>
+            <span class="tag">${p.eliminated? '❌ out':'✅ in'}</span>
+          `;
+          row.appendChild(name); row.appendChild(tags); playersList.appendChild(row);
+        });
+      } else {
         const me = players[state.uid]||{};
-        const wasElim = state.meEliminated;
-        state.meEliminated = !!(me && me.eliminated);
+        state.meEliminated = !!me.eliminated;
         eliminated.classList.toggle('hide', !state.meEliminated);
-        if (state.meEliminated && !wasElim) {
-          lockEliminatedUI();
-          msg?.classList.remove('hide'); if (msg) msg.textContent = '❌ You’ve been eliminated.';
-        }
 
         const listEl = document.getElementById('playersListPlayer');
         if (listEl){
-          const sorted = entries.sort(([,a],[,b])=>{
-            const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); return rank(b) - rank(a);
-          });
+          const sorted = entries.sort(([,a],[,b])=>{ const rank = (p)=> (p.present?1:0) + (p.eliminated?0:2); return rank(b) - rank(a); });
           listEl.innerHTML = '';
           sorted.forEach(([,p])=>{
             const row = document.createElement('div'); row.className='row';
@@ -1034,7 +1104,7 @@
     try{ await set(lockRef, true); if (lockAnswerBtn) lockAnswerBtn.disabled = true; }
     catch(e){ console.error('Lock failed', e); alert('Could not lock answer (maybe time is up?).'); }
   }
-  lockAnswerBtn?.addEventListener('click', lockMyAnswer);
+  if (lockAnswerBtn) lockAnswerBtn.addEventListener('click', lockMyAnswer);
 
   function revealCorrect(cur){
     if (cur.correctIndex == null) return;
@@ -1043,35 +1113,6 @@
       b.classList.toggle('wrong', bi!==cur.correctIndex);
       b.disabled = true;
     });
-  }
-
-  // === Elimination helpers ===
-  function lockEliminatedUI(){
-    try{
-      stopTimer();
-      $$('.answerBtn, button, input, select, textarea').forEach(el=>{
-        if (el && typeof el.disabled === 'boolean') el.disabled = true;
-      });
-      qArea?.classList.add('hide');
-      eliminated?.classList.remove('hide');
-      state.meEliminated = true;
-      if (statusTxt) statusTxt.textContent = 'eliminated';
-    }catch(e){ console.error('lockEliminatedUI failed', e); }
-  }
-
-  async function checkAndShowMyElimination(cur){
-    try{
-      const code = state.room; const uid  = auth.currentUser?.uid || state.uid;
-      if (!uid || !Number.isInteger(cur?.qid) || cur?.phase !== 'result') return;
-      if (state.meEliminated) { lockEliminatedUI(); return; }
-      const myAnsSnap = await get(ref(db, `rooms/${code}/answers/${cur.qid}/${uid}`));
-      const myAns = myAnsSnap.exists() ? myAnsSnap.val() : null;
-      const gotItRight = myAns && Number.isInteger(myAns.index) && myAns.index === Number(cur.correctIndex);
-      if (!gotItRight){
-        lockEliminatedUI();
-        msg?.classList.remove('hide'); if (msg) msg.textContent = '❌ You’ve been eliminated.';
-      }
-    }catch(e){ console.error('checkAndShowMyElimination failed', e); }
   }
 
   function startTimer(deadline){
@@ -1085,7 +1126,7 @@
   }
   function stopTimer(){ if(state.timerInt){ clearInterval(state.timerInt); state.timerInt=null; } }
 
-  // Checkpoint recap at checkpoints
+  // Show checkpoint recap at checkpoints
   async function maybeShowCheckpointRecapIfNeeded(curObj) {
     if (!curObj || curObj.phase !== 'result' || !Number.isInteger(curObj.qid)) return;
     const within = ((curObj.qid - 1) % 10);
@@ -1097,15 +1138,19 @@
     const code = state.room;
     const playersSnap = await get(ref(db, `rooms/${code}/players`));
     const players = playersSnap.exists() ? playersSnap.val() : {};
-    const alive = []; const out = [];
+
+    const alive = [];
+    const out = [];
     for (const p of Object.values(players)) {
       if (!p || !p.name) continue;
-      if (p.present && !p.eliminated) alive.push(p.name); else out.push(p.name || 'Player');
+      if (p.present && !p.eliminated) alive.push(p.name);
+      else out.push(p.name || 'Player');
     }
 
     cpAliveList.innerHTML = alive.length
       ? alive.map(n => `<div class='row'><span class='tag'>✅ in</span><div>${n}</div></div>`).join('')
       : '<div class="muted small">No one is currently in.</div>';
+
     cpOutList.innerHTML = out.length
       ? out.map(n => `<div class='row'><span class='tag'>❌ out</span><div>${n}</div></div>`).join('')
       : '<div class="muted small">No one is out yet.</div>';
@@ -1132,15 +1177,15 @@
     }).join('');
   }
 
-  // ========= Bank parsing + staging =========
+  // ========= Bank parsing + staging (robust CSV) =========
   function parseBank(text){
     text = (text || '').trim();
     if (!text) return [];
-    try {
+    try { // JSON first
       const data = JSON.parse(text);
       const arr = Array.isArray(data) ? data : [data];
       return arr.map(normalizeItem).filter(Boolean);
-    } catch (_) { /* CSV fallback */ }
+    } catch (_) { /* fall through to CSV */ }
 
     const lines = text.split('\n').map(l => (l.endsWith('\r') ? l.slice(0, -1) : l)).filter(Boolean);
     if (lines.length < 2) return [];
@@ -1150,10 +1195,10 @@
       for (let i = 0; i < line.length; i++) {
         const ch = line[i];
         if (ch === '"') { if (inQuotes && line[i+1] === '"') { cur += '"'; i++; } else { inQuotes = !inQuotes; } }
-        else if (ch === ',' && !inQuotes) { out.push(cur); cur=''; }
+        else if (ch === ',' && !inQuotes) { out.push(cur); cur = ''; }
         else { cur += ch; }
       }
-      out.push(cur); return out.map(s=>s.trim());
+      out.push(cur); return out.map(s => s.trim());
     };
 
     const header = splitCSV(lines[0]).map(h => h.trim().toLowerCase());
