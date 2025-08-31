@@ -243,6 +243,31 @@
     </div>
 
     <!-- Final Recap Modal -->
+    <!-- 1% Winners Modal -->
+<div id="onePercentModal" class="hide"
+     style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
+  <div style="width:min(900px,95vw); max-height:80vh; overflow:auto;
+              background:linear-gradient(180deg,#141a33,#0f1530);
+              border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
+      <h2 style="margin:0">🎉 Congratulations — 1% Question!</h2>
+      <button id="closeOnePercentBtn">Close</button>
+    </div>
+    <div class="grid g2">
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0">Got it right</h2>
+        <div id="onePWinList" class="list"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h2 style="margin-top:0">Eliminated</h2>
+        <div id="onePOutList" class="list"></div>
+      </div>
+    </div>
+    <div class="hint small" style="margin-top:8px">The host can close this to end the game for everyone.</div>
+  </div>
+</div>
+
+    
     <div id="finalModal" class="hide" style="position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6); z-index:9999;">
       <div style="width:min(900px,95vw); max-height:80vh; overflow:auto; background:linear-gradient(180deg,#141a33,#0f1530); border:1px solid var(--edge); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5)">
       <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px">
@@ -365,6 +390,20 @@
     const finalLeftList = document.getElementById('finalLeftList');
     const finalRightList = document.getElementById('finalRightList');
     const finalSub = document.getElementById('finalSub');
+
+    // 1% winners modal refs
+const onePercentModal = document.getElementById('onePercentModal');
+const closeOnePercentBtn = document.getElementById('closeOnePercentBtn');
+const onePWinList = document.getElementById('onePWinList');
+const onePOutList = document.getElementById('onePOutList');
+
+// Host closes -> end game for everyone
+if (closeOnePercentBtn) {
+  closeOnePercentBtn.addEventListener('click', async ()=>{
+    if (!state.host) return; // only host ends the game
+    await update(ref(db, `rooms/${state.room}/current`), { phase: 'closed' });
+  });
+}
 
     let shownCheckpointForQid = null;
     if (closeCheckpointBtn) closeCheckpointBtn.addEventListener('click', ()=> checkpointModal?.classList.add('hide'));
@@ -634,53 +673,93 @@ function armDeadlineAutoscore(cur){
     }
 
     // ===== Scoring (with end-of-game + final recap) =====
-    async function scoreRound(){
-      const code = state.room;
-      const currentRef = ref(db, `rooms/${code}/current`);
-      const curSnap = await get(currentRef);
-      const cur = curSnap.val();
-      if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
+  // ===== Scoring (with 1% popup + end-of-game) =====
+async function scoreRound(){
+  const code = state.room;
+  const currentRef = ref(db, `rooms/${code}/current`);
+  const curSnap = await get(currentRef);
+  const cur = curSnap.val();
+  if (!cur || (cur.phase !== 'revealed' && cur.phase !== 'locked')) return;
 
-      const aliveBefore = await getAliveUids(code);
-      const cIdx = parseInt(correctIndex.value, 10);
-      await update(currentRef, { phase: 'result', correctIndex: cIdx });
+  // Who was alive BEFORE scoring (used if everyone drops out)
+  const aliveBefore = await getAliveUids(code);
 
-      const [ansSnap, playersSnap] = await Promise.all([
-        get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
-        get(ref(db, `rooms/${code}/players`))
-      ]);
+  // 1) Set correct index & enter result phase
+  const cIdx = parseInt(correctIndex.value, 10);
+  await update(currentRef, { phase: 'result', correctIndex: cIdx });
 
-      const answers = ansSnap.exists() ? ansSnap.val() : {};
-      const players = playersSnap.exists() ? playersSnap.val() : {};
+  // 2) Read answers + players
+  const [ansSnap, playersSnap] = await Promise.all([
+    get(ref(db, `rooms/${code}/answers/${cur.qid}`)),
+    get(ref(db, `rooms/${code}/players`))
+  ]);
+  const answers = ansSnap.exists() ? ansSnap.val() : {};
+  const players = playersSnap.exists() ? playersSnap.val() : {};
 
-      const updates = {};
-      for (const [uid, p] of Object.entries(players)) {
-        if (!(p.present && !p.eliminated)) continue;
-        const a = answers[uid];
-        const wrongOrMissing = !a || a.index !== cIdx;
-        if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
-      }
-      if (Object.keys(updates).length) await update(ref(db), updates);
+  // 3) Eliminate wrong / no-answer
+  const updates = {};
+  for (const [uid, p] of Object.entries(players)) {
+    if (!(p.present && !p.eliminated)) continue;
+    const a = answers[uid];
+    const wrongOrMissing = !a || a.index !== cIdx;
+    if (wrongOrMissing) updates[`rooms/${code}/players/${uid}/eliminated`] = true;
+  }
+  if (Object.keys(updates).length) await update(ref(db), updates);
 
-      const counts = [0, 0, 0, 0];
-      let total = 0;
-      for (const a of Object.values(answers)) {
-        if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) { counts[a.index]++; total++; }
-      }
-      await update(currentRef, { stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total } });
-
-      const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
-      const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
-      const aliveAfter = Object.entries(playersAfter).filter(([,p]) => p.present && !p.eliminated).map(([uid]) => uid);
-
-      const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
-
-      if (aliveAfter.length === 0) {
-        await showFinalRecap({ winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid });
-      } else if (bankDone && cur.phase === 'result') {
-        await showFinalRecap({ winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid });
-      }
+  // 4) Aggregate result stats
+  const counts = [0, 0, 0, 0];
+  let total = 0;
+  for (const a of Object.values(answers)) {
+    if (a && Number.isInteger(a.index) && a.index >= 0 && a.index <= 3) {
+      counts[a.index]++; total++;
     }
+  }
+  await update(currentRef, {
+    stats: { counts: { 0: counts[0], 1: counts[1], 2: counts[2], 3: counts[3] }, total }
+  });
+
+  // 5) Who is alive AFTER scoring
+  const playersAfterSnap = await get(ref(db, `rooms/${code}/players`));
+  const playersAfter = playersAfterSnap.exists() ? playersAfterSnap.val() : {};
+  const aliveAfter = Object.entries(playersAfter)
+    .filter(([,p]) => p.present && !p.eliminated)
+    .map(([uid]) => uid);
+
+  // === Special case: if this was the 1% question, show winners popup ===
+  if (cur.percent === 1) {
+    const winnersUids = aliveAfter.slice();           // still alive ⇒ got 1% right
+    const eliminatedThisRoundUids = Object.keys(updates); // those just eliminated now
+
+    // Map UIDs → names
+    const playersAfterSnap2 = await get(ref(db, `rooms/${code}/players`));
+    const playersAfter2 = playersAfterSnap2.exists() ? playersAfterSnap2.val() : {};
+    const nameOf = (uid)=> (playersAfter2[uid]?.name || players[uid]?.name || 'Player');
+
+    const winnersMap = {};
+    winnersUids.forEach(uid => { winnersMap[uid] = nameOf(uid); });
+
+    const eliminatedMap = {};
+    eliminatedThisRoundUids.forEach(uid => { eliminatedMap[uid] = nameOf(uid); });
+
+    // Set special phase + payload; clients will open the 1% modal
+    await update(currentRef, {
+      phase: 'final1p',
+      final1p: { winners: winnersMap, out: eliminatedMap }
+    });
+
+    return; // stop: skip normal final recap flow
+  }
+
+  // 6) Normal end-of-game checks (non-1% questions)
+  const bankDone = (state.bank.length > 0) && (state.progressAbs >= state.bank.length);
+
+  if (aliveAfter.length === 0) {
+    await showFinalRecap({ winners: [], lastRemaining: aliveBefore, lastDropQid: cur.qid });
+  } else if (bankDone && cur.phase === 'result') {
+    await showFinalRecap({ winners: aliveAfter, lastRemaining: [], lastDropQid: cur.qid });
+  }
+}
+
 
     async function namesFromUids(code, uidList){
       if (!uidList?.length) return [];
@@ -871,6 +950,30 @@ if (curNow.phase !== 'result') {
       onValue(ref(db, `rooms/${code}/current`), (snap)=>{
         state.current = snap.val() || {};
         const cur = state.current;
+
+// Show 1% winners popup
+if (cur.phase === 'final1p' && cur.final1p) {
+  const winners = cur.final1p.winners || {};
+  const out = cur.final1p.out || {};
+
+  onePWinList.innerHTML = Object.values(winners).length
+    ? Object.values(winners).map(n => `<div class="row"><span class="tag">🏆</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">—</div>';
+
+  onePOutList.innerHTML = Object.values(out).length
+    ? Object.values(out).map(n => `<div class="row"><span class="tag">❌</span><div>${n}</div></div>`).join('')
+    : '<div class="muted small">—</div>';
+
+  onePercentModal?.classList.remove('hide');
+  stopTimer?.(); // freeze timers/inputs while popup is up
+}
+
+// Host ended the game after the 1% popup — return everyone to landing
+if (cur.phase === 'closed') {
+  location.reload(); // simplest universal reset
+  return;
+}
+
         // Manage deadline auto-score
 if (cur.phase === 'revealed') {
   armDeadlineAutoscore(cur);
